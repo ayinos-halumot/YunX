@@ -189,5 +189,5 @@
     <!-- 设置：详细文件命名 -->
     <string name="settings_media_naming">详细文件命名</string>
     <string name="settings_media_naming_desc_off">用内容标题作文件名（默认）</string>
-    <string name="settings_media_naming_desc_on">平台_作者(@作者ID)_标题_时间_类型_序号，例如 xhs_昵称(@作者ID)_标题_20261123-2126_photo_01</string>
+    <string name="settings_media_naming_desc_on">平台_作者(@作者ID)_标题_时间_类型_序号</string>
 </resources>
