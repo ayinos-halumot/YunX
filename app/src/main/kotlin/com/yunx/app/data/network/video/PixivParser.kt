@@ -155,7 +155,9 @@ object PixivParser : VideoParser {
             AppStrings.get(R.string.em_what_pixiv_pages)
         ).optJSONArray("body")
 
-        val title = body.optString("title")
+        // ★ Pixiv 作品的标题字段是 `illustTitle`；`title` 常常是空的或固定占位，
+        //   直接用 title 会让命名里没有标题，所以优先 illustTitle、回退 title
+        val title = body.optString("illustTitle").ifBlank { body.optString("title") }
         val fileBase = DownloadPathPolicy.sanitizeName(title).take(80).ifBlank { "pixiv_${link.id}" }
 
         val medias = buildList {
