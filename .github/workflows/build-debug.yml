@@ -1,0 +1,47 @@
+# 任意分支出 debug 包：push 到本分支即构建，产物作为 Artifacts 提供。
+# 为什么不改默认分支：GitHub 要求可手动触发(workflow_dispatch)的工作流必须定义在默认分支上，
+# 而 push 触发使用「被推送分支自己的」工作流文件 —— 这样在不触碰 master 的前提下也能给功能分支出包。
+name: Build debug APK (branch)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      YUNX_USE_MIRROR: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Cache Gradle and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Assemble debug
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
