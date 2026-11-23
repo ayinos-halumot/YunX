@@ -502,22 +502,22 @@ object XhsParser : VideoParser {
     }
 
     /**
-     * 「小红书号」（用户在 App 里看到的那串数字，如 27285520825）。
+     * 命名用的作者 ID —— 用户明确要求用**内部 userId**（24 位十六进制）。
      *
-     * ★ 不能用 `user.userId`：那是小红书的**内部 ID**（24 位十六进制，如 6960fa01...01ffcb），
-     *   和客户端里展示的「小红书号」完全是两回事 —— 用它拼文件名会得到一串看不懂的十六进制。
-     *   正确字段是 `redId`（部分接口写作 `red_id` / `redIdStr`）；都取不到时**返回空串**，
-     *   命名里就省略 `(@ID)` 这一段 —— 宁可少一段，也不写一个错的 ID。
+     * 依据（2026-11 实测）：`https://www.xiaohongshu.com/user/profile/<userId>` 是官方认的地址，
+     * 拿它可以直接定位到该用户（匿名会 302 到登录页，登录后即可打开），且它**不会变**；
+     * 而「小红书号」(redId) 只在部分接口返回、且可能被用户修改。
+     * 取不到 userId 时再退回 redId / red_id 等业务字段；都取不到就省略 `(@ID)` 段。
      */
     private fun xhsAuthorId(user: JSONObject?): String {
         if (user == null) return ""
+        val userId = user.str("userId")
+        if (userId.isNotBlank()) return userId
         for (key in listOf("redId", "red_id", "redIdStr", "userNum")) {
             val value = user.str(key)
             if (value.isNotBlank()) return value
         }
-        // 兜底：少数接口把 userId 直接给成纯数字（那才是小红书号）；是十六进制就丢掉
-        val rawUserId = user.str("userId")
-        return rawUserId.takeIf { it.isNotBlank() && it.all(Char::isDigit) }.orEmpty()
+        return ""
     }
 
     /** 文件名主干：清洗非法字符并截断；标题为空时兜底为「平台_id」 */
