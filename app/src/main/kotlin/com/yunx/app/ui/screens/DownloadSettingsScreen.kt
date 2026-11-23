@@ -51,7 +51,8 @@ import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Power
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Speedimport androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
