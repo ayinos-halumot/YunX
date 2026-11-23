@@ -801,6 +801,8 @@ fun MainScreen(
             multiAccountDownloadProvider = { settings.multiAccountDownload },
             // 用 multiSourceActive()：C2 依赖 C1，关掉 C1 后这里也自动为 false（见 SettingsRepository）
             multiSourceDownloadProvider = { settings.multiSourceActive() },
+            // 详细文件命名：「全部下载」的文件夹名（开=平台_作者(@ID)_时间；关=作品标题）
+            detailedNamingProvider = { settings.mediaNamingDetailed },
             // 视频解析仓库（抖音/小红书/快手/微博/AcFun/B站/Pixiv）
             videoParseRepository = videoParseRepository
         )
