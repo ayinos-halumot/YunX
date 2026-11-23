@@ -189,5 +189,5 @@
     <!-- 設定：詳細ファイル名 -->
     <string name="settings_media_naming">詳細ファイル名</string>
     <string name="settings_media_naming_desc_off">内容のタイトルをファイル名に使う（デフォルト）</string>
-    <string name="settings_media_naming_desc_on">プラットフォーム_作者(@作者ID)_タイトル_時刻_種類_連番（例: xhs_名前(@作者ID)_タイトル_20261123-2126_photo_01）</string>
+    <string name="settings_media_naming_desc_on">プラットフォーム_作者(@作者ID)_タイトル_時刻_種類_連番</string>
 </resources>
