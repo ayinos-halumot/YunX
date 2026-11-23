@@ -156,6 +156,7 @@ object DouyinParser : VideoParser {
             platform = platform,
             title = title,
             author = author?.optStringAny("nickname").orEmpty(),
+            authorId = author?.optStringAny("uid", "sec_uid").orEmpty(),
             // 参考实现优先 avatar_thumb，退化到 avatar_medium
             avatar = firstUrl(author?.optObjectAny("avatar_thumb", "avatar_medium")).orEmpty(),
             cover = cover,

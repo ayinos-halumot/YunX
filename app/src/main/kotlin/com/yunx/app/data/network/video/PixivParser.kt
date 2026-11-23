@@ -202,6 +202,7 @@ object PixivParser : VideoParser {
             platform = platform,
             title = title,
             author = body.optString("userName"),
+            authorId = body.optString("userId").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
             cover = medias.first().url,
             text = body.optString("description"),
             timestampSeconds = parseCreateDate(body.optString("createDate")),
