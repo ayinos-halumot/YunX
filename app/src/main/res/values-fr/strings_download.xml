@@ -186,4 +186,8 @@
 
     <!-- DownloadEngineScreen / DownloadDebugScreen / MultiAccountDownloadScreen -->
     <string name="dl_debug_merging_live">Fusion des segments · %1$d%%</string>
+    <!-- Paramètres : nommage détaillé des fichiers -->
+    <string name="settings_media_naming">Nommage détaillé des fichiers</string>
+    <string name="settings_media_naming_desc_off">Utiliser le titre du contenu comme nom (par défaut)</string>
+    <string name="settings_media_naming_desc_on">Plateforme_Auteur(@ID)_Titre_Type_Index, ex. xhs_0442(@26545950442)_titre_photo_01</string>
 </resources>
