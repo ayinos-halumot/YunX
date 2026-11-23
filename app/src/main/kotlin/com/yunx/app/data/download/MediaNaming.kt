@@ -62,6 +62,34 @@ object MediaNaming {
         else -> "video"
     }
 
+    /**
+     * 「详细命名」开启时，「全部下载」多文件用的**文件夹名**：`平台_作者(@ID)_时间`。
+     *
+     * ★ 为什么需要它：原逻辑拿**作品标题**当文件夹名，而微博图集这类内容没有标题，
+     *   `sanitizeName("")` 得到空串 → 代码判定「不需要文件夹」→ 多张图平铺在下载目录里。
+     *   这里改用「平台 + 作者 + 发布时间」拼一个**必然非空**的名字，同时保留可读性。
+     */
+    fun folderName(result: VideoParseResult): String {
+        val authorPart = buildString {
+            val name = DownloadPathPolicy.sanitizeName(result.author.trim()).take(20)
+            if (name.isNotBlank()) append(name)
+            val id = result.authorId.trim()
+            if (id.isNotBlank()) append("(@").append(DownloadPathPolicy.sanitizeName(id)).append(")")
+        }
+        val timePart = formatPublishTime(result.timestampSeconds)
+        return buildString {
+            append(platformTag(result.platform))
+            if (authorPart.isNotBlank()) {
+                append('_')
+                append(authorPart)
+            }
+            if (timePart.isNotBlank()) {
+                append('_')
+                append(timePart)
+            }
+        }.take(80)
+    }
+
     /** 生成详细命名后的结果（不修改入参，返回副本） */
     fun detailed(result: VideoParseResult): VideoParseResult {
         val total = result.medias.size
