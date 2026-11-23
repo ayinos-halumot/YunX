@@ -391,7 +391,8 @@ fun ResolveScreen(
                     onDownloadMedia = { viewModel.downloadVideoMedia(it) },
                     onDownloadAudio = { viewModel.downloadVideoAudio(it) },
                     onDownloadAll = { viewModel.downloadAllVideoMedia() },
-                    onDownloadSelected = { viewModel.downloadVideoMedias(it) },
+                    // 多选后下载：直接落到默认下载目录，不按作品标题新建子文件夹
+                    onDownloadSelected = { viewModel.downloadVideoMedias(it, withFolder = false) },
                     onBack = { viewModel.backToInput() }
                 )
                 else -> ResolveInputContent(
