@@ -22,15 +22,21 @@ import com.yunx.app.data.network.video.VideoMedia
 import com.yunx.app.data.network.video.VideoMediaKind
 import com.yunx.app.data.network.video.VideoParseResult
 import com.yunx.app.data.network.video.VideoPlatform
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * 「详细命名」：`平台_作者(@ID)_标题_类型_序号.扩展名`
+ * 「详细命名」：`平台_作者(@ID)_标题_时间_类型_序号.扩展名`
  *
- * 例：`xhs_0442(@26545950442)_xxxxx_photo_1.jpg`
+ * 例：`xhs_0442(@26545950442)_标题_20261123-2126_photo_1.jpg`
+ * 无标题时（微博常见）：`wb_某某(@1234567890)_20261123-2126_video_1.mp4`（标题段整段省略）
  *
  * 设计约束（都是踩过的坑）：
  * - 分段里的内容一律过 [DownloadPathPolicy.sanitizeName]：标题/昵称里带 `/`、`:` 会直接毁掉保存路径；
- * - 标题截 40 字：文件名上限 120 字符，不截会把扩展名挤掉（sanitizeName 的截断逻辑优先保留扩展名）；
+ * - **标题截 20 字**（用户要求：标题只有这一项缩）：文件名上限 120 字符，加上时间/ID 段后必须收紧；
+ * - 时间取「内容发布时间」，格式 `yyyyMMdd-HHmm`（设备本地时区）；取不到（时间戳=0）就**不加这一段**，
+ *   不写 `19700101-0000` 这种假值；
  * - 序号按**总张数**补零：13 张 → `01..13`，104 张 → `001..104`；单张不补零（`1`）；
  * - 作者或 ID 缺失时整段省略，不留 `_(@)_` 这种空洞；
  * - 只改 `fileName`，不动 url / headers / kind 等任何下载相关字段。
@@ -68,8 +74,10 @@ object MediaNaming {
             val id = result.authorId.trim()
             if (id.isNotBlank()) append("(@").append(DownloadPathPolicy.sanitizeName(id)).append(")")
         }
-        val title = DownloadPathPolicy.sanitizeName(result.title.trim()).take(40)
+        val title = DownloadPathPolicy.sanitizeName(result.title.trim()).take(20)
         val platform = platformTag(result.platform)
+        // 内容发布时间（本地时区，精确到分）；解析器没给（=0）就整段省略
+        val timePart = formatPublishTime(result.timestampSeconds)
 
         return result.copy(
             medias = result.medias.mapIndexed { index, media ->
@@ -86,6 +94,10 @@ object MediaNaming {
                         append(title)
                         append('_')
                     }
+                    if (timePart.isNotBlank()) {
+                        append(timePart)
+                        append('_')
+                    }
                     append(kindTag(media))
                     append('_')
                     append(seq)
@@ -95,6 +107,14 @@ object MediaNaming {
                 media.copy(fileName = name)
             }
         )
+    }
+
+    /** 内容发布时间 → `yyyyMMdd-HHmm`（设备本地时区）；时间戳 <=0 视为未知，返回空串（不写假时间） */
+    private fun formatPublishTime(seconds: Long): String {
+        if (seconds <= 0L) return ""
+        return runCatching {
+            SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date(seconds * 1000L))
+        }.getOrDefault("")
     }
 
     /** 沿用解析器给的原扩展名（`.mp4`/`.jpg`…）；拿不到时按类型兜底 */
