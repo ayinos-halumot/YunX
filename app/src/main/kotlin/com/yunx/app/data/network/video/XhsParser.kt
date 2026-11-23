@@ -293,6 +293,7 @@ object XhsParser : VideoParser {
             platform = platform,
             title = title,
             author = note.optJSONObject("user")?.str("nickname").orEmpty(),
+            authorId = note.optJSONObject("user")?.str("userId").orEmpty(),
             avatar = note.optJSONObject("user")?.str("avatar").orEmpty(),
             cover = cover,
             text = note.str("desc"),
@@ -365,6 +366,7 @@ object XhsParser : VideoParser {
             title = title,
             // discovery 形态的昵称字段是大写 N 的 nickName
             author = note.optJSONObject("user")?.str("nickName").orEmpty(),
+            authorId = note.optJSONObject("user")?.str("userId").orEmpty(),
             avatar = note.optJSONObject("user")?.str("avatar").orEmpty(),
             cover = cover,
             text = note.str("desc"),
