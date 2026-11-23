@@ -161,6 +161,12 @@ class ResolveViewModel(
      */
     private val multiSourceDownloadProvider: () -> Boolean = { false },
     /**
+     * 详细文件命名开关（由上层从 SettingsRepository 注入）：开启时「全部下载」的**文件夹名**
+     * 改用 `平台_作者(@ID)_时间`（见 `MediaNaming.folderName`），而不再用作品标题 ——
+     * 微博图集这类没有标题的内容，用标题当文件夹名会得到空串，结果是根本不建文件夹。
+     */
+    private val detailedNamingProvider: () -> Boolean = { false },
+    /**
      * 视频解析仓库（抖音/小红书/快手/微博/AcFun/B站/Pixiv）。
      * null = 视频解析不可用（仅测试或未注入时）：解析入口会原样退回网盘/GitHub 流程。
      * 放在构造最后并带默认值，避免破坏既有构造点与测试。
@@ -1109,7 +1115,12 @@ class ResolveViewModel(
         val result = (uiState as? ResolveUiState.Video)?.result ?: return
         if (medias.isEmpty()) return
         val folder = if (withFolder && medias.size > 1) {
-            DownloadPathPolicy.sanitizeName(result.title).take(40)
+            if (detailedNamingProvider()) {
+                // 详细命名开：文件夹名 = 平台_作者(@ID)_时间（微博图集没有标题也不会再变成空）
+                com.yunx.app.data.download.MediaNaming.folderName(result)
+            } else {
+                DownloadPathPolicy.sanitizeName(result.title).take(40)
+            }
         } else {
             ""
         }
@@ -2401,6 +2412,8 @@ class ResolveViewModel(
         private val noSaveDownloadProvider: () -> Boolean = { true },
         private val multiAccountDownloadProvider: () -> Boolean = { false },
         private val multiSourceDownloadProvider: () -> Boolean = { false },
+        /** 详细文件命名开关：开启时「全部下载」的文件夹名改用 平台_作者(@ID)_时间 */
+        private val detailedNamingProvider: () -> Boolean = { false },
         /** 视频解析仓库；null 时视频解析不可用（入口自动回退网盘/GitHub 流程） */
         private val videoParseRepository: VideoParseRepository? = null
     ) : ViewModelProvider.Factory {
@@ -2425,6 +2438,7 @@ class ResolveViewModel(
                 noSaveDownloadProvider,
                 multiAccountDownloadProvider,
                 multiSourceDownloadProvider,
+                detailedNamingProvider,
                 videoParseRepository
             ) as T
         }
