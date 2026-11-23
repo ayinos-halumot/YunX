@@ -304,10 +304,14 @@ object WeiboParser : VideoParser {
      *   `large` 只是「大图」，客户端点「下载原图」拿到的那一档往往比它大 ——
      *   这就是「解析出来的图比微博客户端下载的分辨率低」的原因。
      *
-     * 做法（2026-11 提速后）：**原图优先、逐档降级**——先把地址规格改成最高档 `orj1080` 探一次，
-     * 命中就直接用（绝大多数情况一次请求搞定，比原来「最多 12 次 HEAD 比体积」快一个数量级）；
-     * `orj1080` 不可用再退 `mw2000`，仍不行才用 JSON 原始地址。
-     * 每次探测都带 2.5 秒超时，慢/挂的图床不会拖住整个解析。
+     * 做法：把 JSON 给的地址（largest / large / url）当作基准，把规格段分别改写成
+     * `orj1080` / `mw2000` / `large`，**并行 HEAD 比 Content-Length 取最大的一档**。
+     *
+     * ★ 为什么不能「第一个成功就用」（2026-11 的教训）：图床对**不存在的规格**可能返回
+     *   `200 + 一张 HTML 错误页`，先到先得会把这张 HTML 当成"原图"存下来 —— 用户看到的就是
+     *   「下载的不是原图」。所以必须比体积，并且排除 `Content-Type` 非 `image/*` 的响应。
+     * ★ 速度靠并发 + 2.5s 超时保证：3 个候选同时探，正常几十毫秒；
+     *   每张图之间也并发（见上方 `pics` 的 `map { async { ... } }`），9 图总耗时≈单张。
      */
     private suspend fun resolveBestPic(pic: JSONObject, headers: Map<String, String>): PicPick {
         val direct = listOfNotNull(
@@ -318,16 +322,19 @@ object WeiboParser : VideoParser {
         if (direct.isEmpty()) return PicPick("", -1L)
 
         val baseUrl = direct.first()
-        // ① 最高档 orj1080：一次 HEAD，命中即用
-        val original = rewriteSize(baseUrl, "orj1080")
-        val originalSize = sizeOf(original, headers)
-        if (originalSize > 0) return PicPick(original, originalSize)
-        // ② 次高档 mw2000
-        val large = rewriteSize(baseUrl, "mw2000")
-        val largeSize = sizeOf(large, headers)
-        if (largeSize > 0) return PicPick(large, largeSize)
-        // ③ 都不可用：用 JSON 原始地址（不再逐档枚举，避免为了「比体积」拖慢解析）
-        return PicPick(baseUrl, sizeOf(baseUrl, headers))
+        val candidates = LinkedHashSet<String>()
+        for (spec in listOf("orj1080", "mw2000", "large")) {
+            val rewritten = rewriteSize(baseUrl, spec)
+            if (rewritten != baseUrl) candidates += rewritten
+        }
+        candidates += baseUrl
+
+        val probed = coroutineScope {
+            candidates.map { url -> async { url to sizeOf(url, headers) } }.awaitAll()
+        }
+        // 只在「探测成功（>0）且确实是图片」的候选里挑体积最大的；全失败则退回 JSON 原始地址
+        val best = probed.filter { it.second > 0 }.maxByOrNull { it.second }
+        return if (best != null) PicPick(best.first, best.second) else PicPick(baseUrl, -1L)
     }
 
     /**
@@ -335,18 +342,41 @@ object WeiboParser : VideoParser {
      * 解析不出「host + 规格 + 文件名」三段结构时原样返回（不做任何猜测）。
      */
     private fun rewriteSize(url: String, size: String): String {
-        val m = Regex("""^(https?://[^/]+)/[^/]+/(.+)$""").find(url) ?: return url
-        return "${m.groupValues[1]}/$size/${m.groupValues[2]}"
+        // 常见形态：https://wx1.sinaimg.cn/<规格>/<pid>.jpg
+        Regex("""^(https?://[^/]+)/[^/]+/(.+)$""").find(url)?.let {
+            return "${it.groupValues[1]}/$size/${it.groupValues[2]}"
+        }
+        // 少数图片没有规格段（https://wx1.sinaimg.cn/<pid>.jpg）：在文件名前插入规格，
+        // 命中就是更清晰的版本，不命中（404）会被 sizeOf 判成 -1，自动退回原地址
+        Regex("""^(https?://[^/]+)/([^/?]+\.[A-Za-z0-9]+)(\?.*)?$""").find(url)?.let {
+            return "${it.groupValues[1]}/$size/${it.groupValues[2]}${it.groupValues[3]}"
+        }
+        return url
     }
 
-    /** HEAD 取字节数；不支持 HEAD / 网络异常 / 非 2xx / 超过 2.5s 一律 -1（不参与比较，也不拖慢解析） */
+    /**
+     * HEAD 取字节数。以下情况一律返回 -1（不参与「谁更大」的比较）：
+     * 非 2xx、**`Content-Type` 不是 `image/*`**（图床对不存在的规格会返回 200+HTML 错误页）、
+     * 拿不到 `Content-Length`、超过 2.5 秒、网络异常。
+     */
     private suspend fun sizeOf(url: String, headers: Map<String, String>): Long = try {
         withTimeoutOrNull(2_500L) {
             val r = VideoHttp.request(url, method = "HEAD", headers = headers)
-            if (r.status !in 200..299) -1L
-            else r.headers.entries
-                .firstOrNull { it.key.equals("content-length", ignoreCase = true) }
-                ?.value?.trim()?.toLongOrNull() ?: -1L
+            if (r.status !in 200..299) {
+                -1L
+            } else {
+                val contentType = r.headers.entries
+                    .firstOrNull { it.key.equals("content-type", ignoreCase = true) }
+                    ?.value?.lowercase()
+                // ★ 关键：200 但返回 HTML/JSON 的一律不算图片 —— 否则会选中"假原图"
+                if (contentType != null && !contentType.startsWith("image/")) {
+                    -1L
+                } else {
+                    r.headers.entries
+                        .firstOrNull { it.key.equals("content-length", ignoreCase = true) }
+                        ?.value?.trim()?.toLongOrNull() ?: -1L
+                }
+            }
         } ?: -1L
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
