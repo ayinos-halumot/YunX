@@ -21,6 +21,9 @@ package com.yunx.app.data.network.video
 import com.yunx.app.R
 import com.yunx.app.data.download.DownloadPathPolicy
 import com.yunx.app.util.AppStrings
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -195,7 +198,7 @@ object WeiboParser : VideoParser {
      * 转发微博：本项目的 [VideoParseResult] 没有嵌套字段（参考实现是构造成 `repost` 递归嵌套），
      * 这里退化成「外层**没有任何媒体**时，直接用一层被转发内容作为结果」，只取一层以避免无限递归。
      */
-    private fun buildWeiboData(
+    private suspend fun buildWeiboData(
         link: DetectedVideoLink,
         data: JSONObject,
         cookie: String,
@@ -226,14 +229,18 @@ object WeiboParser : VideoParser {
             var imageIndex = 0
             for (i in 0 until pics.length()) {
                 val pic = pics.optJSONObject(i) ?: continue
-                val url = pic.optJSONObject("large")?.str("url").orEmpty()
-                if (url.isBlank()) continue
+                // ★ 不再只取 large：微博图床同一张图有 orj1080 / mw2000 / large 等多档规格，
+                //   large 只是「大图」，客户端「下载原图」往往比它更大。逐档 HEAD 比体积取最大。
+                val pick = resolveBestPic(pic, mediaHeaders)
+                if (pick.url.isBlank()) continue
                 val motionUrl = pic.str("videoSrc")
                 imageIndex += 1
                 medias += VideoMedia(
-                    url = url,
+                    url = pick.url,
                     kind = VideoMediaKind.IMAGE,
                     fileName = "${base}_$imageIndex.jpg",
+                    // 探测到的真实体积一并带上：下载页能显示准确进度，不必再等服务器给 Content-Length
+                    size = if (pick.size > 0) pick.size else -1L,
                     headers = mediaHeaders,
                     quality = if (motionUrl.isNotBlank()) {
                         AppStrings.get(R.string.em_quality_motion)
@@ -277,6 +284,72 @@ object WeiboParser : VideoParser {
     }
 
     /** 微博正文里的 `&lt;br /&gt;` 换成换行，再去掉其余 HTML 标签（参考实现 text_content 原样移植） */
+    // ---------------------------- 图片「原图」解析 ----------------------------
+
+    /** 一张图的最终选择：url + 探测到的字节数（-1 = 未知） */
+    private data class PicPick(val url: String, val size: Long)
+
+    /**
+     * 取一张微博图片**最清晰**的地址。
+     *
+     * ★ 为什么不能只用 `pics[].large.url`：微博图床同一张图（同一个 pid）有多个规格，
+     *   形如 `https://wx1.sinaimg.cn/<规格>/<pid>.jpg`，规格从低到高大致是
+     *   `thumbnail` → `bmiddle` → `mw690` → `large` → `mw2000` → `orj1080`。
+     *   `large` 只是「大图」，客户端点「下载原图」拿到的那一档往往比它大 ——
+     *   这就是「解析出来的图比微博客户端下载的分辨率低」的原因。
+     *
+     * 做法：把 JSON 里给的地址（largest / large / url）都收进来，再把每个地址的规格段
+     * 改写成 `orj1080` / `mw2000` / `large`，得到候选集，并行 HEAD 比 `Content-Length`，
+     * 取最大的一档；全部探测失败则退回 JSON 原始地址（宁可给大图，也不给空）。
+     */
+    private suspend fun resolveBestPic(pic: JSONObject, headers: Map<String, String>): PicPick {
+        val direct = listOfNotNull(
+            pic.optJSONObject("largest")?.str("url")?.takeIf { it.isNotBlank() },
+            pic.optJSONObject("large")?.str("url")?.takeIf { it.isNotBlank() },
+            pic.str("url").takeIf { it.isNotBlank() }
+        ).map(::httpsUrl)
+        if (direct.isEmpty()) return PicPick("", -1L)
+
+        val candidates = LinkedHashSet<String>()
+        for (u in direct) {
+            candidates += u
+            candidates += rewriteSize(u, "orj1080")
+            candidates += rewriteSize(u, "mw2000")
+            candidates += rewriteSize(u, "large")
+        }
+
+        val probed = coroutineScope {
+            candidates.map { u -> async { u to sizeOf(u, headers) } }.awaitAll()
+        }
+        val fallback = direct.first()
+        val fallbackSize = probed.firstOrNull { it.first == fallback }?.second ?: -1L
+        val best = probed.filter { it.second > 0 }.maxByOrNull { it.second }
+            ?: return PicPick(fallback, fallbackSize)
+        return PicPick(best.first, best.second)
+    }
+
+    /**
+     * 把微博图床地址的「规格段」换掉：`https://wx1.sinaimg.cn/<规格>/<pid>.jpg` → `.../<newSize>/<pid>.jpg`。
+     * 解析不出「host + 规格 + 文件名」三段结构时原样返回（不做任何猜测）。
+     */
+    private fun rewriteSize(url: String, size: String): String {
+        val m = Regex("""^(https?://[^/]+)/[^/]+/(.+)$""").find(url) ?: return url
+        return "${m.groupValues[1]}/$size/${m.groupValues[2]}"
+    }
+
+    /** HEAD 取字节数；不支持 HEAD / 网络异常 / 非 2xx 一律 -1（不参与「谁更大」的比较） */
+    private suspend fun sizeOf(url: String, headers: Map<String, String>): Long = try {
+        val r = VideoHttp.request(url, method = "HEAD", headers = headers)
+        if (r.status !in 200..299) -1L
+        else r.headers.entries
+            .firstOrNull { it.key.equals("content-length", ignoreCase = true) }
+            ?.value?.trim()?.toLongOrNull() ?: -1L
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        -1L
+    }
+
     private fun cleanStatusText(raw: String): String =
         raw.replace("<br />", "\n").replace(Regex("<[^>]*>"), "")
 
