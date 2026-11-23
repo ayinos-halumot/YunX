@@ -309,7 +309,7 @@ object WeiboParser : VideoParser {
      *
      * ★ 为什么不能「第一个成功就用」（2026-11 的教训）：图床对**不存在的规格**可能返回
      *   `200 + 一张 HTML 错误页`，先到先得会把这张 HTML 当成"原图"存下来 —— 用户看到的就是
-     *   「下载的不是原图」。所以必须比体积，并且排除 `Content-Type` 非 `image/*` 的响应。
+     *   「下载的不是原图」。所以必须比体积，并且排除 `Content-Type` 不是图片类型的响应。
      * ★ 速度靠并发 + 2.5s 超时保证：3 个候选同时探，正常几十毫秒；
      *   每张图之间也并发（见上方 `pics` 的 `map { async { ... } }`），9 图总耗时≈单张。
      */
@@ -356,7 +356,7 @@ object WeiboParser : VideoParser {
 
     /**
      * HEAD 取字节数。以下情况一律返回 -1（不参与「谁更大」的比较）：
-     * 非 2xx、**`Content-Type` 不是 `image/*`**（图床对不存在的规格会返回 200+HTML 错误页）、
+     * 非 2xx、**`Content-Type` 不是图片类型**（图床对不存在的规格会返回 200+HTML 错误页）、
      * 拿不到 `Content-Length`、超过 2.5 秒、网络异常。
      */
     private suspend fun sizeOf(url: String, headers: Map<String, String>): Long = try {
