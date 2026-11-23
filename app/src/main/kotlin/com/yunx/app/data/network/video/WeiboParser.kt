@@ -321,20 +321,23 @@ object WeiboParser : VideoParser {
         ).map(::httpsUrl)
         if (direct.isEmpty()) return PicPick("", -1L)
 
-        val baseUrl = direct.first()
         val candidates = LinkedHashSet<String>()
-        for (spec in listOf("orj1080", "mw2000", "large")) {
-            val rewritten = rewriteSize(baseUrl, spec)
-            if (rewritten != baseUrl) candidates += rewritten
+        // 与第一版一致：把 JSON 里给的每个地址都当基准改写（同一 pid 改写后字符串相同，
+        // LinkedHashSet 会自动去重，实际候选通常只有 3~4 个），不会漏掉高清规格。
+        for (baseUrl in direct) {
+            for (spec in listOf("orj1080", "mw2000", "large")) {
+                val rewritten = rewriteSize(baseUrl, spec)
+                if (rewritten != baseUrl) candidates += rewritten
+            }
+            candidates += baseUrl
         }
-        candidates += baseUrl
 
         val probed = coroutineScope {
             candidates.map { url -> async { url to sizeOf(url, headers) } }.awaitAll()
         }
         // 只在「探测成功（>0）且确实是图片」的候选里挑体积最大的；全失败则退回 JSON 原始地址
         val best = probed.filter { it.second > 0 }.maxByOrNull { it.second }
-        return if (best != null) PicPick(best.first, best.second) else PicPick(baseUrl, -1L)
+        return if (best != null) PicPick(best.first, best.second) else PicPick(direct.first(), -1L)
     }
 
     /**
