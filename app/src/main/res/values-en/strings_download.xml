@@ -189,5 +189,5 @@
     <!-- Settings: detailed file naming -->
     <string name="settings_media_naming">Detailed file naming</string>
     <string name="settings_media_naming_desc_off">Use the content title as the file name (default)</string>
-    <string name="settings_media_naming_desc_on">Platform_Author(@ID)_Title_Type_Index, e.g. xhs_0442(@26545950442)_title_photo_01</string>
+    <string name="settings_media_naming_desc_on">Platform_Author(@ID)_Title_Time_Type_Index, e.g. xhs_0442(@26545950442)_title_20261123-2126_photo_01</string>
 </resources>
