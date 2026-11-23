@@ -1097,17 +1097,22 @@ class ResolveViewModel(
     }
 
     /**
-     * 批量下载一组媒体（图集的「全部下载」/多选后的「下载所选」共用）。
+     * 批量下载一组媒体。
      *
-     * ★ **多张时文件名带「作品标题/」前缀**：下载页是按 `fileName` 里的 `/` 把任务收纳成**可折叠的
-     *   文件夹组**（就是网盘「整个文件夹下载」那一套机制，见 `DownloadScreen` 的 `folderGroups`）。
-     *   于是图集批量下载在下载页是**一个分组**，而不是几十张散落各处的图片任务。
-     *   **单张不加前缀** —— 一个只有一张图的「文件夹」没有意义。
+     * @param withFolder 是否按「作品标题/」建子文件夹：
+     *   - `true`（「全部下载」的默认行为）：多张时文件名带 `作品标题/` 前缀，下载页按 `fileName` 里的 `/`
+     *     收纳成**可折叠的文件夹组**（网盘「整个文件夹下载」那套机制，见 `DownloadScreen` 的 `folderGroups`），
+     *     于是图集是一个分组而不是几十张散落任务；单张不加前缀（一张图的「文件夹」没有意义）。
+     *   - `false`（多选后的「下载所选」）：直接落到**默认下载目录**，不再新建子文件夹。
      */
-    fun downloadVideoMedias(medias: List<VideoMedia>) {
+    fun downloadVideoMedias(medias: List<VideoMedia>, withFolder: Boolean = true) {
         val result = (uiState as? ResolveUiState.Video)?.result ?: return
         if (medias.isEmpty()) return
-        val folder = if (medias.size > 1) DownloadPathPolicy.sanitizeName(result.title).take(40) else ""
+        val folder = if (withFolder && medias.size > 1) {
+            DownloadPathPolicy.sanitizeName(result.title).take(40)
+        } else {
+            ""
+        }
         viewModelScope.launch {
             var okCount = 0
             var failReason: String? = null
