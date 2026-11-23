@@ -232,6 +232,19 @@ class SettingsRepository(context: Context) {
             prefs.edit().putBoolean("download_full_sha256", value).apply()
         }
 
+    /**
+     * 详细文件命名（下载设置，默认**关**＝沿用「内容标题」命名）。
+     *
+     * 开启后解析结果的文件名改为 `平台_作者(@ID)_标题_类型_序号`（见 `MediaNaming`），
+     * 如 `xhs_0442(@26545950442)_标题_photo_01.jpg`。只影响「视频/图集解析」下载，
+     * 网盘下载的文件名（远端真实文件名）不受影响。
+     */
+    var mediaNamingDetailed: Boolean
+        get() = prefs.getBoolean("media_naming_detailed", false)
+        set(value) {
+            prefs.edit().putBoolean("media_naming_detailed", value).apply()
+        }
+
     /** 忽略 SSL 证书校验（抓包调试用，隐藏菜单开启；默认关闭） */
     var ignoreSslCert: Boolean
         get() = prefs.getBoolean("ignore_ssl_cert", false)
