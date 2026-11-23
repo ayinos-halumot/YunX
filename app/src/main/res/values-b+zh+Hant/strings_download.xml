@@ -186,4 +186,8 @@
 
     <!-- DownloadEngineScreen / DownloadDebugScreen / MultiAccountDownloadScreen -->
     <string name="dl_debug_merging_live">正在合併分片 · %1$d%%</string>
+    <!-- 設定：詳細檔案命名 -->
+    <string name="settings_media_naming">詳細檔案命名</string>
+    <string name="settings_media_naming_desc_off">用內容標題作檔案名（預設）</string>
+    <string name="settings_media_naming_desc_on">平台_作者(@作者ID)_標題_時間_類型_序號</string>
 </resources>
