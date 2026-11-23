@@ -2063,7 +2063,11 @@ class DownloadManager(
             if (!ok2) throw IllegalStateException(AppStrings.get(R.string.ed_download_range_and_full_failed))
         }
         if (!isTaskActive()) return
-        finishDownload(id, chunkDir, listOf(partFile), task.fileName, 0)
+        // ★ 总大小未知的流式下载：落盘字节数就是真实大小。回写 totalSize 再收尾，
+        //   否则完成态会显示「0 B」，分组进度也永远没有分母 —— 表现就是整组看不到进度。
+        val actualSize = partFile.length()
+        dao.updateProgress(id, DownloadTaskEntity.STATUS_DOWNLOADING, actualSize, actualSize)
+        finishDownload(id, chunkDir, listOf(partFile), task.fileName, actualSize)
     }
 
     /** HLS（m3u8 转码流，如 UC play）下载：拉取分片合并 → 保存 → 完成回调 */
