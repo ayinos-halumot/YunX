@@ -1,6 +1,3 @@
-# 任意分支出 debug 包：push 到本分支即构建，产物作为 Artifacts 提供。
-# 为什么不改默认分支：GitHub 要求可手动触发(workflow_dispatch)的工作流必须定义在默认分支上，
-# 而 push 触发使用「被推送分支自己的」工作流文件 —— 这样在不触碰 master 的前提下也能给功能分支出包。
 name: Build debug APK (branch)
 
 on:
@@ -10,8 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      YUNX_USE_MIRROR: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +29,17 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
 
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon
