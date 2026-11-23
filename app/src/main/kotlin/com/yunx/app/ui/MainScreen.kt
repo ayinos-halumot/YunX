@@ -768,7 +768,7 @@ fun MainScreen(
     }
     // 视频解析仓库：解析页「视频解析」入口使用（与视频账号页共用同一份 Cookie 账号表）
     val videoParseRepository = remember {
-        VideoParseRepository(VideoAccountRepository(db.videoAccountDao()))
+        VideoParseRepository(VideoAccountRepository(db.videoAccountDao()), settings)
     }
     val resolveViewModel: ResolveViewModel = viewModel(
         factory = ResolveViewModel.Factory(
