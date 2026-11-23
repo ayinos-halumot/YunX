@@ -24,6 +24,7 @@ import com.yunx.app.util.AppStrings
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -228,12 +229,14 @@ object WeiboParser : VideoParser {
         //   把它与静图合成为一张「动态照片」，见 `VideoMedia.motionUrl`。
         val pics = data.optJSONArray("pics")
         if (pics != null) {
+            val picObjects = (0 until pics.length()).mapNotNull { pics.optJSONObject(it) }
+            // ★ 并行探测：原来是「一张接一张」串行探测，9 图就是 9 轮往返，解析明显变慢。
+            //   这里全部并发，总耗时≈最慢的那一张。
+            val picks = coroutineScope {
+                picObjects.map { pic -> async { pic to resolveBestPic(pic, mediaHeaders) } }.awaitAll()
+            }
             var imageIndex = 0
-            for (i in 0 until pics.length()) {
-                val pic = pics.optJSONObject(i) ?: continue
-                // ★ 不再只取 large：微博图床同一张图有 orj1080 / mw2000 / large 等多档规格，
-                //   large 只是「大图」，客户端「下载原图」往往比它更大。逐档 HEAD 比体积取最大。
-                val pick = resolveBestPic(pic, mediaHeaders)
+            for ((pic, pick) in picks) {
                 if (pick.url.isBlank()) continue
                 val motionUrl = pic.str("videoSrc")
                 imageIndex += 1
@@ -301,9 +304,10 @@ object WeiboParser : VideoParser {
      *   `large` 只是「大图」，客户端点「下载原图」拿到的那一档往往比它大 ——
      *   这就是「解析出来的图比微博客户端下载的分辨率低」的原因。
      *
-     * 做法：把 JSON 里给的地址（largest / large / url）都收进来，再把每个地址的规格段
-     * 改写成 `orj1080` / `mw2000` / `large`，得到候选集，并行 HEAD 比 `Content-Length`，
-     * 取最大的一档；全部探测失败则退回 JSON 原始地址（宁可给大图，也不给空）。
+     * 做法（2026-11 提速后）：**原图优先、逐档降级**——先把地址规格改成最高档 `orj1080` 探一次，
+     * 命中就直接用（绝大多数情况一次请求搞定，比原来「最多 12 次 HEAD 比体积」快一个数量级）；
+     * `orj1080` 不可用再退 `mw2000`，仍不行才用 JSON 原始地址。
+     * 每次探测都带 2.5 秒超时，慢/挂的图床不会拖住整个解析。
      */
     private suspend fun resolveBestPic(pic: JSONObject, headers: Map<String, String>): PicPick {
         val direct = listOfNotNull(
@@ -313,22 +317,17 @@ object WeiboParser : VideoParser {
         ).map(::httpsUrl)
         if (direct.isEmpty()) return PicPick("", -1L)
 
-        val candidates = LinkedHashSet<String>()
-        for (u in direct) {
-            candidates += u
-            candidates += rewriteSize(u, "orj1080")
-            candidates += rewriteSize(u, "mw2000")
-            candidates += rewriteSize(u, "large")
-        }
-
-        val probed = coroutineScope {
-            candidates.map { u -> async { u to sizeOf(u, headers) } }.awaitAll()
-        }
-        val fallback = direct.first()
-        val fallbackSize = probed.firstOrNull { it.first == fallback }?.second ?: -1L
-        val best = probed.filter { it.second > 0 }.maxByOrNull { it.second }
-            ?: return PicPick(fallback, fallbackSize)
-        return PicPick(best.first, best.second)
+        val baseUrl = direct.first()
+        // ① 最高档 orj1080：一次 HEAD，命中即用
+        val original = rewriteSize(baseUrl, "orj1080")
+        val originalSize = sizeOf(original, headers)
+        if (originalSize > 0) return PicPick(original, originalSize)
+        // ② 次高档 mw2000
+        val large = rewriteSize(baseUrl, "mw2000")
+        val largeSize = sizeOf(large, headers)
+        if (largeSize > 0) return PicPick(large, largeSize)
+        // ③ 都不可用：用 JSON 原始地址（不再逐档枚举，避免为了「比体积」拖慢解析）
+        return PicPick(baseUrl, sizeOf(baseUrl, headers))
     }
 
     /**
@@ -340,13 +339,15 @@ object WeiboParser : VideoParser {
         return "${m.groupValues[1]}/$size/${m.groupValues[2]}"
     }
 
-    /** HEAD 取字节数；不支持 HEAD / 网络异常 / 非 2xx 一律 -1（不参与「谁更大」的比较） */
+    /** HEAD 取字节数；不支持 HEAD / 网络异常 / 非 2xx / 超过 2.5s 一律 -1（不参与比较，也不拖慢解析） */
     private suspend fun sizeOf(url: String, headers: Map<String, String>): Long = try {
-        val r = VideoHttp.request(url, method = "HEAD", headers = headers)
-        if (r.status !in 200..299) -1L
-        else r.headers.entries
-            .firstOrNull { it.key.equals("content-length", ignoreCase = true) }
-            ?.value?.trim()?.toLongOrNull() ?: -1L
+        withTimeoutOrNull(2_500L) {
+            val r = VideoHttp.request(url, method = "HEAD", headers = headers)
+            if (r.status !in 200..299) -1L
+            else r.headers.entries
+                .firstOrNull { it.key.equals("content-length", ignoreCase = true) }
+                ?.value?.trim()?.toLongOrNull() ?: -1L
+        } ?: -1L
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Exception) {
