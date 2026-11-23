@@ -293,7 +293,7 @@ object XhsParser : VideoParser {
             platform = platform,
             title = title,
             author = note.optJSONObject("user")?.str("nickname").orEmpty(),
-            authorId = note.optJSONObject("user")?.str("userId").orEmpty(),
+            authorId = xhsAuthorId(note.optJSONObject("user")),
             avatar = note.optJSONObject("user")?.str("avatar").orEmpty(),
             cover = cover,
             text = note.str("desc"),
@@ -366,7 +366,7 @@ object XhsParser : VideoParser {
             title = title,
             // discovery 形态的昵称字段是大写 N 的 nickName
             author = note.optJSONObject("user")?.str("nickName").orEmpty(),
-            authorId = note.optJSONObject("user")?.str("userId").orEmpty(),
+            authorId = xhsAuthorId(note.optJSONObject("user")),
             avatar = note.optJSONObject("user")?.str("avatar").orEmpty(),
             cover = cover,
             text = note.str("desc"),
@@ -499,6 +499,25 @@ object XhsParser : VideoParser {
         put("User-Agent", VideoHttp.UA_CHROME)
         put("Referer", REFERER)
         if (cookie.isNotBlank()) put("Cookie", cookie)
+    }
+
+    /**
+     * 「小红书号」（用户在 App 里看到的那串数字，如 27285520825）。
+     *
+     * ★ 不能用 `user.userId`：那是小红书的**内部 ID**（24 位十六进制，如 6960fa01...01ffcb），
+     *   和客户端里展示的「小红书号」完全是两回事 —— 用它拼文件名会得到一串看不懂的十六进制。
+     *   正确字段是 `redId`（部分接口写作 `red_id` / `redIdStr`）；都取不到时**返回空串**，
+     *   命名里就省略 `(@ID)` 这一段 —— 宁可少一段，也不写一个错的 ID。
+     */
+    private fun xhsAuthorId(user: JSONObject?): String {
+        if (user == null) return ""
+        for (key in listOf("redId", "red_id", "redIdStr", "userNum")) {
+            val value = user.str(key)
+            if (value.isNotBlank()) return value
+        }
+        // 兜底：少数接口把 userId 直接给成纯数字（那才是小红书号）；是十六进制就丢掉
+        val rawUserId = user.str("userId")
+        return rawUserId.takeIf { it.isNotBlank() && it.all(Char::isDigit) }.orEmpty()
     }
 
     /** 文件名主干：清洗非法字符并截断；标题为空时兜底为「平台_id」 */
