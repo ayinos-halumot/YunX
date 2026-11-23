@@ -632,7 +632,7 @@ private fun FolderDownloadGroup(
                     Text(
                         text = if (unknownTotal) {
                             // 总大小未知时不显示「x / 0 B」这种误导性数字，只报已下载量
-                            "$completed/${tasks.size} · ${formatSize(downloaded)}"
+                            "$completed/${tasks.size}${stringResource(R.string.dl_separator)}${formatSize(downloaded)}"
                         } else {
                             stringResource(
                                 R.string.dl_folder_count,
@@ -657,7 +657,8 @@ private fun FolderDownloadGroup(
                         text = when {
                             done -> stringResource(R.string.dl_status_done)
                             merging -> stringResource(R.string.dl_status_merging)
-                            else -> if (unknownTotal) "…" else "${(fraction * 100).toInt()}%"
+                            else -> if (unknownTotal) stringResource(R.string.dl_unknown_progress)
+                            else "${(fraction * 100).toInt()}%"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
@@ -1124,12 +1125,13 @@ private fun DownloadTaskCard(
                     } else if (task.totalSize <= 0) {
                         // 大小未知：报出「下载中 · 3.2 MB · 1.4 MB/s」，不让这一行成为空白
                         buildString {
+                            val sep = stringResource(R.string.dl_separator)
                             append(DownloadTaskEntity.statusText(task.status))
-                            append(" · ")
+                            append(sep)
                             append(formatSize(task.downloadedSize))
                             val speed = stats?.takeIf { isDownloading }?.speed ?: 0L
                             if (speed > 0) {
-                                append(" · ")
+                                append(sep)
                                 append(formatSpeed(speed))
                             }
                         }
