@@ -236,13 +236,37 @@ class SettingsRepository(context: Context) {
      * 详细文件命名（下载设置，默认**关**＝沿用「内容标题」命名）。
      *
      * 开启后解析结果的文件名改为 `平台_作者(@ID)_标题_类型_序号`（见 `MediaNaming`），
-     * 如 `xhs_0442(@26545950442)_标题_photo_01.jpg`。只影响「视频/图集解析」下载，
+     * 如 `xhs_<作者>(@<ID>)_<标题>_photo_01.jpg`。只影响「视频/图集解析」下载，
      * 网盘下载的文件名（远端真实文件名）不受影响。
      */
     var mediaNamingDetailed: Boolean
         get() = prefs.getBoolean("media_naming_detailed", false)
         set(value) {
             prefs.edit().putBoolean("media_naming_detailed", value).apply()
+        }
+
+    /**
+     * 图集（多图结果）的展示方式：**true = 连续滚动（默认）**，false = 每 10 张一页 + 分页条。
+     *
+     * 开关在「设置 → 主题与外观 → 图片展示」；只影响解析结果页的网格，不影响下载与文件命名。
+     */
+    var videoImageInfiniteScroll: Boolean
+        get() = prefs.getBoolean("video_image_infinite_scroll", true)
+        set(value) {
+            prefs.edit().putBoolean("video_image_infinite_scroll", value).apply()
+        }
+
+    /**
+     * 批量下载是否新建文件夹（下载设置，**默认 true = 保持原有行为**）。
+     *
+     * - true：多文件下载按 `作品标题/`（详细命名开启时用 `平台_作者(@ID)_时间`）建子文件夹，
+     *   下载页据此归组成一个可折叠的文件夹；
+     * - false：直接平铺到默认下载目录，不建子目录。
+     */
+    var batchDownloadFolderEnabled: Boolean
+        get() = prefs.getBoolean("batch_download_folder_enabled", true)
+        set(value) {
+            prefs.edit().putBoolean("batch_download_folder_enabled", value).apply()
         }
 
     /** 忽略 SSL 证书校验（抓包调试用，隐藏菜单开启；默认关闭） */
