@@ -2569,6 +2569,9 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
   不一致就改扩展名并 `dao.updateFileName(id, finalName)` 回写，界面显示与文件系统保持一致。
 - ★ **只处理图片**（jpg/png/webp/gif/bmp）：音视频容器（mp4/m4a/ts）的魔数区分不可靠，
   误判（m4a→mp4）会破坏播放，收益小于风险，故不碰；HLS 路径不走 `finishDownload`，同样不受影响。
+- ★★ **`DownloadSaver.mimeOf` 必须按真实扩展名给图片 MIME**：以前把 jpg/png/gif/webp 全归成
+  `image/jpeg`，SAF 的 `createDocument` 发现「MIME 与扩展名不符」会自动补扩展名 → 下载出 `.png.jpg`
+  这种双扩展名文件（2026-11 用户实测）。改后 png→image/png、gif→image/gif、webp→image/webp。
 
 **② 下载列表排序**（`ui/screens/DownloadScreen.kt` → `buildDownloadEntries`）
 - 以前「文件夹组」整体排在所有单文件之后（批量下载刚建完就沉底，像没加进来）。
