@@ -70,7 +70,8 @@ object WechatMpParser : VideoParser {
     private suspend fun parseArticle(link: DetectedVideoLink): VideoParseResult {
         val html = VideoHttp.getText(link.url, articleHeaders)
 
-        val title = firstGroup(html, TITLE_JS).ifBlank { firstGroup(html, TITLE_H1) }.trim()
+        val title = firstGroup(html, TITLE_JS).ifBlank { firstGroup(html, TITLE_H1) }
+            .ifBlank { firstGroup(html, TITLE_OG) }.trim()
         val author = firstGroup(html, AUTHOR_JS).ifBlank { firstGroup(html, AUTHOR_DOM) }.trim()
         val cover = firstGroup(html, COVER_JS).ifBlank { firstGroup(html, COVER_OG) }
         val timestamp = firstGroup(html, CTIME_JS).toLongOrNull() ?: 0L
@@ -80,18 +81,20 @@ object WechatMpParser : VideoParser {
 
         val medias = mutableListOf<VideoMedia>()
 
-        // ① 正文图片：微信的正文里 img 是懒加载，真地址在 data-src；统一升级成 /0（原图）
-        val content = html.substringAfter("id=\"js_content\"", html)
-        val imageUrls = LinkedHashSet<String>()
-        IMG_DATA_SRC.findAll(content).forEach { imageUrls += it.groupValues[1] }
-        if (imageUrls.isEmpty()) {
-            // 少数排版直接把地址写在 src 上
-            IMG_SRC.findAll(content).forEach { imageUrls += it.groupValues[1] }
-        }
+        // ① 正文图片（抽成纯函数，便于单测）
+        val imageUrls = extractImageUrls(html)
+
+        // 封面也算一张可下载的图：界面上没有单独的封面位（`VideoParseResult.cover` 目前没有 UI 消费方），
+        // 直接放进媒体列表，用户既能"看到"也能下载。
+        val normalizedCover = originalImage(cover)
+        if (normalizedCover.startsWith("http")) imageUrls.add(normalizedCover)
+
+        // 归一化成 /0 原图后再去重：同一张图在页面里可能同时出现缩略与原始两种规格
+        val normalized = LinkedHashSet<String>(imageUrls)
+        if (normalizedCover.startsWith("http")) normalized += normalizedCover
+
         var index = 0
-        for (raw in imageUrls) {
-            val url = originalImage(raw)
-            if (!url.startsWith("http")) continue
+        for (url in normalized) {
             index += 1
             medias += VideoMedia(
                 url = url,
@@ -120,8 +123,10 @@ object WechatMpParser : VideoParser {
         }
 
         if (medias.isEmpty()) {
+            // 用 UNSUPPORTED 而不是 NOT_FOUND：后者的文案固定是「内容不存在、已删除或不可见」，
+            // 而这里更常见的情况是「文章还在，但确实没有图片/视频」，不能误导用户以为文章被删了。
             throw VideoParseException(
-                VideoParseErrorKind.NOT_FOUND,
+                VideoParseErrorKind.UNSUPPORTED,
                 AppStrings.get(R.string.er_wechat_no_media)
             )
         }
@@ -172,6 +177,25 @@ object WechatMpParser : VideoParser {
         )
     }
 
+    /**
+     * **纯函数**：从文章 HTML 里抽图片地址（已归一化成 `/0` 原图并去重）。
+     *
+     * 覆盖三种页面形态（都在实测里遇到过）：
+     * a) 普通图文 —— 正文 img 懒加载，真地址在 `data-src`；必须限定 `http` 开头，
+     *    否则会把页面内联 JS 里的 `data-src="'.concat(...)"` 模板串当成图片地址；
+     * b) 图片消息（图集）—— 没有 `#js_content`，图片在 `picture_page_info_list` 的 `cdn_url:` 里；
+     * c) 兜底 —— 整页所有 `mmbiz.qpic.cn` 地址（含表情/装饰图，只在 a、b 都为空时用）。
+     */
+    internal fun extractImageUrls(html: String): List<String> {
+        val contentAt = html.indexOf("id=\"js_content\"").let { if (it >= 0) it else 0 }
+        val content = html.substring(contentAt)
+        val raw = LinkedHashSet<String>()
+        IMG_DATA_SRC.findAll(content).forEach { raw += it.groupValues[1] }
+        if (raw.isEmpty()) PICTURE_CDN.findAll(html).forEach { raw += it.groupValues[1] }
+        if (raw.isEmpty()) ANY_MMBIZ.findAll(html).forEach { raw += it.groupValues[0] }
+        return raw.map(::originalImage).filter { it.startsWith("http") }.distinct()
+    }
+
     // ---------------------------------------------------------------- 工具
 
     private fun firstGroup(text: String, regex: Regex): String =
@@ -183,7 +207,7 @@ object WechatMpParser : VideoParser {
      * ★ 只改「纯数字规格段」，不动 `sz_mmbiz`/`mmbiz` 这类路径前缀；`wx_fmt` 参数原样保留
      * （它决定返回格式，缺了会 404）。
      */
-    private fun originalImage(url: String): String =
+    internal fun originalImage(url: String): String =
         url.replace("&amp;", "&").replace(Regex("""/(?:640|750|1080)(\?|$)"""), "/0$1")
 
     /** 扩展名按 `wx_fmt` 判断；拿不到就按 jpg（微信自己也常把 jpeg 参数配 PNG/WebP 返回，见 §3.49 备注） */
@@ -199,13 +223,16 @@ object WechatMpParser : VideoParser {
 
     private val TITLE_JS = Regex("""var\s+msg_title\s*=\s*['"]([^'"]*)""")
     private val TITLE_H1 = Regex("""class="js_title_inner"[^>]*>([\s\S]{0,200}?)</""")
+    private val TITLE_OG = Regex("""property="og:title"\s+content="([^"]*)""")
     private val AUTHOR_JS = Regex("""var\s+nickname\s*=\s*['"]([^'"]*)""")
     private val AUTHOR_DOM = Regex("""id="js_name"[^>]*>([\s\S]{0,80}?)</""")
     private val COVER_JS = Regex("""var\s+msg_cdn_url\s*=\s*['"]([^'"]+)""")
     private val COVER_OG = Regex("""property="og:image"\s+content="([^"]+)"""")
     private val CTIME_JS = Regex("""var\s+ct\s*=\s*['"]?(\d{9,13})""")
-    private val IMG_DATA_SRC = Regex("""data-src="([^"]+)"""")
-    private val IMG_SRC = Regex("""<img[^>]+src="(https://mmbiz\.qpic\.cn[^"]+)"""")
+    private val IMG_DATA_SRC = Regex("""data-src="(https?://[^"]+)"""")
+    /** 图片消息（图集）里的图片清单：`picture_page_info_list: [ { cdn_url: 'https://…' } ]` */
+    private val PICTURE_CDN = Regex("""cdn_url:\s*'(https?://[^']+)'""")
+    private val ANY_MMBIZ = Regex("""https?://mmbiz\.qpic\.cn/[^"'\\\s)]+""")
     private val VIDEO_TAG = Regex("""<video[^>]+src="([^"]+)"""")
     private val MPVIDEO = Regex("""(https?://mpvideo\.qpic\.cn/[^"'\\\s]+)""")
 }
