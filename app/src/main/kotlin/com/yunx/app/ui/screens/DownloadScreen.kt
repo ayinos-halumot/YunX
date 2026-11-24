@@ -245,6 +245,8 @@ fun DownloadScreen(
                     onResumeAll = { viewModel.resumeAll() },
                     onDeleteAll = { showDeleteAllConfirm = true }
                 )
+                // 单文件任务与「文件夹组」混排，统一按创建时间倒序（Composable 上下文里算，LazyColumn 的 item 块不是 @Composable）。
+                val entries = remember(tasks) { buildDownloadEntries(tasks) }
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
@@ -255,7 +257,6 @@ fun DownloadScreen(
                 ) {
                     // 单文件任务与「文件夹组」混排，统一按创建时间倒序。
                     // 以前组永远排在所有单文件之后 —— 批量下载（如公众号多图）刚建完就沉到底部，像没加进来。
-                    val entries = remember(tasks) { buildDownloadEntries(tasks) }
                     items(entries, key = { it.key }) { entry ->
                         val folder = entry.folder
                         if (folder == null) {
