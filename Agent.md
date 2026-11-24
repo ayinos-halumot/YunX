@@ -2558,3 +2558,22 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 **回退**：删掉 `WechatMpParser.kt`、`VideoPlatform.WECHAT_MP` 枚举项、`VideoParsers.all` 里的注册、
 `VideoLinkParser` 里 7 条微信规则、`MediaNaming.platformTag` 的 `wx` 分支、`PlatformLogos` 映射与 drawable，
 以及 5 个语言文件的 `vm_video_platform_wechat_mp` / `er_wechat_*` 三条字符串。
+
+---
+
+### 3.50 下载：扩展名按文件头纠正 + 下载列表混排排序
+
+**① 扩展名纠正**（`data/download/MediaTypeSniffer.kt`）
+- 微信图片的 `wx_fmt` 参数不可信（写 `wx_fmt=jpeg` 实际给 PNG/WebP），解析器只能照参数写扩展名。
+- `DownloadManager.finishDownload` 在写盘前读合并首片的前 16 字节，按魔数判断**图片**真实格式，
+  不一致就改扩展名并 `dao.updateFileName(id, finalName)` 回写，界面显示与文件系统保持一致。
+- ★ **只处理图片**（jpg/png/webp/gif/bmp）：音视频容器（mp4/m4a/ts）的魔数区分不可靠，
+  误判（m4a→mp4）会破坏播放，收益小于风险，故不碰；HLS 路径不走 `finishDownload`，同样不受影响。
+
+**② 下载列表排序**（`ui/screens/DownloadScreen.kt` → `buildDownloadEntries`）
+- 以前「文件夹组」整体排在所有单文件之后（批量下载刚建完就沉底，像没加进来）。
+- 现在单文件与文件夹组**混排**，统一按 `createTime` 倒序；组取组内最新一条时间，
+  同一时间用 key 兜底保证顺序稳定。DAO 查询本来就是 `ORDER BY createTime DESC`，无需改库。
+
+**回退**：删 `MediaTypeSniffer.kt` 与其单测、`finishDownload` 里的纠正块、`DownloadTaskDao.updateFileName`、
+`DownloadScreen` 的 `buildDownloadEntries` 与 `DownloadListEntry`（恢复原 rootTasks/folderGroups 两段渲染）。
