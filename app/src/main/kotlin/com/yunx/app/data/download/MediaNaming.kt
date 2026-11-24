@@ -29,7 +29,7 @@ import java.util.Locale
 /**
  * 「详细命名」：`平台_作者(@ID)_标题_时间_类型_序号.扩展名`
  *
- * 例：`xhs_0442(@26545950442)_标题_20261123-2126_photo_1.jpg`
+ * 例：`xhs_<作者>(@<ID>)_<标题>_20260101-1200_photo_1.jpg`（示例值均为占位符）
  * 无标题时（微博常见）：`wb_某某(@1234567890)_20261123-2126_video_1.mp4`（标题段整段省略）
  *
  * 设计约束（都是踩过的坑）：
@@ -52,6 +52,7 @@ object MediaNaming {
         VideoPlatform.ACFUN -> "acfun"
         VideoPlatform.BILIBILI -> "bili"
         VideoPlatform.PIXIV -> "pixiv"
+        VideoPlatform.WECHAT_MP -> "wx"
     }
 
     /** 类型段（英文）：动图单独算 motion，其余按媒体类型 */
@@ -62,6 +63,33 @@ object MediaNaming {
         else -> "video"
     }
 
+    /**
+     * 「详细命名」开启时，「全部下载」多文件用的**文件夹名**：`平台_作者(@ID)_时间`。
+     *
+     * ★ 为什么需要它：原逻辑拿**作品标题**当文件夹名，而微博图集这类内容没有标题，
+     *   `sanitizeName("")` 得到空串 → 代码判定「不需要文件夹」→ 多张图平铺在下载目录里。
+     *   这里改用「平台 + 作者 + 发布时间」拼一个**必然非空**的名字，同时保留可读性。
+     */
+    fun folderName(result: VideoParseResult): String {
+        val authorPart = buildString {
+            val name = truncate(DownloadPathPolicy.sanitizeName(result.author.trim()), 20)
+            if (name.isNotBlank()) append(name)
+            val id = result.authorId.trim()
+            if (id.isNotBlank()) append("(@").append(DownloadPathPolicy.sanitizeName(id)).append(")")
+        }
+        val timePart = formatPublishTime(result.timestampSeconds)
+        val parts = mutableListOf(platformTag(result.platform))
+        if (authorPart.isNotBlank()) parts += authorPart
+        if (timePart.isNotBlank()) parts += timePart
+        // 兜底：作者与时间都缺时用作品 ID（URL 最后一段）区分，避免所有作品落进同一个「wb」目录
+        if (authorPart.isBlank() && timePart.isBlank()) {
+            result.url.substringAfterLast('/').substringBefore('?')
+                .takeIf { it.isNotBlank() }
+                ?.let { parts += DownloadPathPolicy.sanitizeName(it) }
+        }
+        return parts.joinToString("_").take(80)
+    }
+
     /** 生成详细命名后的结果（不修改入参，返回副本） */
     fun detailed(result: VideoParseResult): VideoParseResult {
         val total = result.medias.size
@@ -69,12 +97,12 @@ object MediaNaming {
         val width = total.toString().length
 
         val authorPart = buildString {
-            val name = DownloadPathPolicy.sanitizeName(result.author.trim()).take(20)
+            val name = truncate(DownloadPathPolicy.sanitizeName(result.author.trim()), 20)
             if (name.isNotBlank()) append(name)
             val id = result.authorId.trim()
             if (id.isNotBlank()) append("(@").append(DownloadPathPolicy.sanitizeName(id)).append(")")
         }
-        val title = DownloadPathPolicy.sanitizeName(result.title.trim()).take(20)
+        val title = truncate(DownloadPathPolicy.sanitizeName(result.title.trim()), 15)
         val platform = platformTag(result.platform)
         // 内容发布时间（本地时区，精确到分）；解析器没给（=0）就整段省略
         val timePart = formatPublishTime(result.timestampSeconds)
@@ -107,6 +135,16 @@ object MediaNaming {
                 media.copy(fileName = name)
             }
         )
+    }
+
+    /**
+     * 按「完整字符」截断（`String.take(n)` 数的是 UTF-16 单元，可能把 emoji / 罕用汉字从中间切坏，
+     * 变成半个代理对 → 文件名里出现乱码方块）。这里按 codePoint 数。
+     */
+    private fun truncate(text: String, maxCodePoints: Int): String {
+        if (text.isEmpty()) return text
+        if (text.codePointCount(0, text.length) <= maxCodePoints) return text
+        return text.substring(0, text.offsetByCodePoints(0, maxCodePoints))
     }
 
     /** 内容发布时间 → `yyyyMMdd-HHmm`（设备本地时区）；时间戳 <=0 视为未知，返回空串（不写假时间） */
