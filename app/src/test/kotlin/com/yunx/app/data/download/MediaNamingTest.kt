@@ -65,6 +65,7 @@ class MediaNamingTest {
         assertEquals("acfun", MediaNaming.platformTag(VideoPlatform.ACFUN))
         assertEquals("bili", MediaNaming.platformTag(VideoPlatform.BILIBILI))
         assertEquals("pixiv", MediaNaming.platformTag(VideoPlatform.PIXIV))
+        assertEquals("wx", MediaNaming.platformTag(VideoPlatform.WECHAT_MP))
     }
 
     @Test
