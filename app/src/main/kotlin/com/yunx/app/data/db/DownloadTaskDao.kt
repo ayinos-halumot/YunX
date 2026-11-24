@@ -53,6 +53,10 @@ interface DownloadTaskDao {
     @Query("UPDATE download_task SET errorMsg = :errorMsg WHERE id = :id")
     suspend fun updateError(id: Long, errorMsg: String)
 
+    /** 保存时按真实文件头纠正扩展名后回写（见 MediaTypeSniffer） */
+    @Query("UPDATE download_task SET fileName = :name WHERE id = :id")
+    suspend fun updateFileName(id: Long, name: String)
+
     @Query("UPDATE download_task SET status = :status, savePath = :savePath, avgSpeed = :avgSpeed WHERE id = :id")
     suspend fun complete(id: Long, status: Int, savePath: String, avgSpeed: Long = 0L)
 
