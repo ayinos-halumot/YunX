@@ -246,6 +246,17 @@ class SettingsRepository(context: Context) {
         }
 
     /**
+     * 图集（多图结果）的展示方式：**true = 连续滚动（默认）**，false = 每 10 张一页 + 分页条。
+     *
+     * 开关在「设置 → 主题与外观 → 图片展示」；只影响解析结果页的网格，不影响下载与文件命名。
+     */
+    var videoImageInfiniteScroll: Boolean
+        get() = prefs.getBoolean("video_image_infinite_scroll", true)
+        set(value) {
+            prefs.edit().putBoolean("video_image_infinite_scroll", value).apply()
+        }
+
+    /**
      * 批量下载是否新建文件夹（下载设置，**默认 true = 保持原有行为**）。
      *
      * - true：多文件下载按 `作品标题/`（详细命名开启时用 `平台_作者(@ID)_时间`）建子文件夹，
