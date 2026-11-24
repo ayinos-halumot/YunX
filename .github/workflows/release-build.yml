@@ -44,7 +44,9 @@ jobs:
           fi
 
       - name: 单元测试
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest
 
       - name: 打包 release
         run: ./gradlew --no-daemon assembleRelease
