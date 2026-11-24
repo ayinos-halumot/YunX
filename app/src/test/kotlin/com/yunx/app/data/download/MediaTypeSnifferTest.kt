@@ -57,7 +57,7 @@ class MediaTypeSnifferTest {
     @Test
     fun `判不出格式时保持原名`() {
         assertEquals("a.jpg", MediaTypeSniffer.correctImageName(bytes(1, 2, 3, 4), "a.jpg"))
-        assertEquals("a.jpg", MediaTypeSniffer.correctImageName(null, "a.jpg"))
+        assertEquals("a.jpg", MediaTypeSniffer.correctImageName(null as ByteArray?, "a.jpg"))
     }
 
     @Test
