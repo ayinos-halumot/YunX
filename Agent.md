@@ -2516,3 +2516,32 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 **回退**：删掉 `SettingsRepository` 两个属性与 `DownloadSettingsScreen` 两个 `SettingsItem`、
 `ResolveViewModel` 的两个 Provider 形参与 `MainScreen` 的两处实参、`MediaNaming.kt`，
 以及 5 个语言文件里 `settings_media_naming*` / `settings_batch_folder*` / `dl_separator` / `dl_unknown_progress` 这 9 条字符串。
+
+---
+
+### 3.49 微信：公众号文章 + 媒体直链（视频号分享链接如实报错）
+
+新增平台 `VideoPlatform.WECHAT_MP`（展示名「微信公众号」），解析器 `WechatMpParser`，**不需要登录**。
+`VideoLinkParser` 按三种 `kind` 分流：
+
+| kind | 链接形态 | 行为 |
+|---|---|---|
+| `article` | `mp.weixin.qq.com/s/<hash>`、`mp.weixin.qq.com/s?__biz=…` | 抓 HTML：正文图取 `#js_content` 里的 `data-src`，封面取 `var msg_cdn_url`（回退 `og:image`），标题 `msg_title`/`.js_title_inner`，作者 `nickname`/`#js_name`，时间 `var ct`；文章内嵌视频取 `<video src>` 与 `mpvideo.qpic.cn` |
+| `direct` | `finder.video.qq.com/.../stodownload?...&sign=...`、`mpvideo.qpic.cn`、`mmbiz.qpic.cn` | 直接入队下载（视频按 mp4，图片按 `wx_fmt` 定扩展名），**不需要任何 Cookie**（实测 200 / `video/mp4`） |
+| `sph` | `weixin.qq.com/sph/<id>`、`channels.weixin.qq.com/finder-preview/pages/sph?id=<id>` | 抛 `UNSUPPORTED`：`er_wechat_sph_unsupported`「由于微信限制，无法使用视频分享链接获取内容」 |
+
+**原图规则（与微博那套不同）**：公众号图片的规格段在路径里，`.../640?wx_fmt=png` → `.../0?wx_fmt=png`；
+`wx_fmt` 必须保留（缺了 404）。**公众号图片本身没有平台水印**，`/640` 只是缩略规格。
+
+**为什么视频号分享链接不做「假解析」**：`finder-preview` 只对外给封面（`251/20304`），
+视频直链是 `251/20302` + `sign`；实测「扫码登录视频号助手」后再调该接口，响应里仍然没有
+`20302` / `sign` / `decodeKey`，只有 9 个字段（`picInfo`/`description`/四个计数/`createtime`/`isHardAd`/`coverUrl`）。
+所以这里宁可如实报错并引导用户改用直链，也不返回一个「解析成功但没有视频」的空结果。
+
+**图标**：`res/drawable/logo_wechat_mp.xml` 为自绘占位（绿底双气泡），未引入官方素材；后续可替换。
+
+**单测**：`app/src/test/kotlin/com/yunx/app/data/network/VideoLinkParserWechatTest.kt`（5 种链接形态 + 不误伤微博/B站）。
+
+**回退**：删掉 `WechatMpParser.kt`、`VideoPlatform.WECHAT_MP` 枚举项、`VideoParsers.all` 里的注册、
+`VideoLinkParser` 里 7 条微信规则、`MediaNaming.platformTag` 的 `wx` 分支、`PlatformLogos` 映射与 drawable，
+以及 5 个语言文件的 `vm_video_platform_wechat_mp` / `er_wechat_*` 三条字符串。
