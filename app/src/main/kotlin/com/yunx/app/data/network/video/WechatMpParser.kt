@@ -82,15 +82,16 @@ object WechatMpParser : VideoParser {
         val medias = mutableListOf<VideoMedia>()
 
         // ① 正文图片（抽成纯函数，便于单测）
-        val imageUrls = extractImageUrls(html)
+        // ② 封面两个尺寸：长条（2.35:1）+ 方图（1:1），按用户要求都放进列表
+        val imageUrls = LinkedHashSet<String>()
+        imageUrls += extractCoverUrls(html)
+        imageUrls += extractImageUrls(html)
 
         // 封面也算一张可下载的图：界面上没有单独的封面位（`VideoParseResult.cover` 目前没有 UI 消费方），
-        // 直接放进媒体列表，用户既能"看到"也能下载。
-        val normalizedCover = originalImage(cover)
+        // 直接把两个尺寸（长条 + 方图）放进媒体列表，用户既能"看到"也能下载。
 
         // 归一化成 /0 原图后再去重：同一张图在页面里可能同时出现缩略与原始两种规格
         val normalized = LinkedHashSet<String>(imageUrls)
-        if (normalizedCover.startsWith("http")) normalized += normalizedCover
 
         var index = 0
         for (url in normalized) {
@@ -186,13 +187,59 @@ object WechatMpParser : VideoParser {
      * c) 兜底 —— 整页所有 `mmbiz.qpic.cn` 地址（含表情/装饰图，只在 a、b 都为空时用）。
      */
     internal fun extractImageUrls(html: String): List<String> {
-        val contentAt = html.indexOf("id=\"js_content\"").let { if (it >= 0) it else 0 }
-        val content = html.substring(contentAt)
         val raw = LinkedHashSet<String>()
-        IMG_DATA_SRC.findAll(content).forEach { raw += it.groupValues[1] }
-        if (raw.isEmpty()) PICTURE_CDN.findAll(html).forEach { raw += it.groupValues[1] }
-        if (raw.isEmpty()) ANY_MMBIZ.findAll(html).forEach { raw += it.groupValues[0] }
+        // a) 普通图文：正文 img 懒加载，真地址在 data-src（限定 http 开头，避开内联 JS 的模板串）。
+        //    ★ 必须先试正文：有些图文页里也带一个 `picture_page_info_list`（页面其他模块用），
+        //      若先取图集块会把正文几十张图漏掉。
+        val contentAt = html.indexOf("id=\"js_content\"").let { if (it >= 0) it else 0 }
+        IMG_DATA_SRC.findAll(html.substring(contentAt)).forEach { raw += it.groupValues[1] }
+        // b) 图片消息（图集）：只在 picture_page_info_list 块里取 `cdn_url`。
+        //    ★ 不能全页匹配 `cdn_url:` —— 页面里还有 `watermark_info.cdn_url`（**已经烧好水印的整图**）、
+        //      `share_cover`、头像、`320.wxapp.tc.qq.com` 等；全抓的结果就是「一张图变四张、其中一张带水印」。
+        if (raw.isEmpty()) {
+            val picBlock = section(html, "picture_page_info_list", listOf("share_cover", "watermark_info"))
+            if (picBlock != null) {
+                CDN_URL_IN_PICTURE.findAll(picBlock).forEach { raw += it.groupValues[1] }
+            }
+        }
+        // c) 兜底：整页 mmbiz 图床；先把水印块摘掉，避免又把带水印的整图收进来
+        if (raw.isEmpty()) {
+            val wmBlock = section(html, "watermark_info", listOf("spot_product_info", "share_cover"))
+            val clean = if (wmBlock != null) html.replace(wmBlock, "") else html
+            ANY_MMBIZ.findAll(clean).forEach { raw += it.value }
+        }
         return raw.map(::originalImage).filter { it.startsWith("http") }.distinct()
+    }
+
+    /**
+     * **纯函数**：两个尺寸的封面 —— 长条（2.35:1）与方图（1:1）。
+     *
+     * 字段来源（实测 2026-11）：
+     * - 长条：`msg_cdn_url`（普通图文）/ `cdn_url_235_1` / 页面级 `cdn_url`
+     * - 方图：`cdn_url_1_1`
+     */
+    internal fun extractCoverUrls(html: String): List<String> {
+        val out = LinkedHashSet<String>()
+        val wide = firstGroup(html, COVER_235_1)
+            .ifBlank { firstGroup(html, COVER_JS) }
+            .ifBlank { firstGroup(html, COVER_OG) }
+            .ifBlank { firstGroup(html, COVER_CDN_PLAIN) }
+        if (wide.isNotBlank()) out += originalImage(wide)
+        val square = firstGroup(html, COVER_1_1)
+        if (square.isNotBlank()) out += originalImage(square)
+        return out.filter { it.startsWith("http") }
+    }
+
+    /** 截取从 `key` 开始的一段（遇到 `until` 里任一标记即止，最长 60k 字符） */
+    private fun section(html: String, key: String, until: List<String>): String? {
+        val start = html.indexOf(key)
+        if (start < 0) return null
+        var end = minOf(html.length, start + 60_000)
+        for (mark in until) {
+            val i = html.indexOf(mark, start + key.length)
+            if (i >= start + key.length && i < end) end = i
+        }
+        return html.substring(start, end)
     }
 
     // ---------------------------------------------------------------- 工具
@@ -230,7 +277,12 @@ object WechatMpParser : VideoParser {
     private val CTIME_JS = Regex("""var\s+ct\s*=\s*['"]?(\d{9,13})""")
     private val IMG_DATA_SRC = Regex("""data-src="(https?://[^"]+)"""")
     /** 图片消息（图集）里的图片清单：`picture_page_info_list: [ { cdn_url: 'https://…' } ]` */
-    private val PICTURE_CDN = Regex("""cdn_url:\s*'(https?://[^']+)'""")
+    private val CDN_URL_IN_PICTURE = Regex("""cdn_url:\s*'(https?://[^']+)'""")
+    /** 封面：长条 2.35:1 */
+    private val COVER_235_1 = Regex("""cdn_url_235_1:\s*'(https?://[^']+)'""")
+    private val COVER_CDN_PLAIN = Regex("""\bcdn_url:\s*'(https?://[^']+)'""")
+    /** 封面：方图 1:1 */
+    private val COVER_1_1 = Regex("""cdn_url_1_1:\s*'(https?://[^']+)'""")
     private val ANY_MMBIZ = Regex("""https?://mmbiz\.qpic\.cn/[^"'\\\s)]+""")
     private val VIDEO_TAG = Regex("""<video[^>]+src="([^"]+)"""")
     private val MPVIDEO = Regex("""(https?://mpvideo\.qpic\.cn/[^"'\\\s]+)""")
