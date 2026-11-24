@@ -87,7 +87,6 @@ object WechatMpParser : VideoParser {
         // 封面也算一张可下载的图：界面上没有单独的封面位（`VideoParseResult.cover` 目前没有 UI 消费方），
         // 直接放进媒体列表，用户既能"看到"也能下载。
         val normalizedCover = originalImage(cover)
-        if (normalizedCover.startsWith("http")) imageUrls.add(normalizedCover)
 
         // 归一化成 /0 原图后再去重：同一张图在页面里可能同时出现缩略与原始两种规格
         val normalized = LinkedHashSet<String>(imageUrls)
