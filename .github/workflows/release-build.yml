@@ -1,0 +1,57 @@
+name: build-release
+
+# release 包（R8 + 资源压缩）。两种签名：
+#   1) 仓库自带 debug 证书（默认，YUNX_RELEASE_USE_DEBUG_SIGN=1）：免配置、可直接覆盖安装 debug 包
+#   2) 正式证书：在仓库 Secrets 里放 YUNX_KEYSTORE_BASE64 / YUNX_KEYSTORE_PASSWORD / YUNX_KEY_ALIAS / YUNX_KEY_PASSWORD
+#      （四个都齐了会自动优先用正式证书，无需改本文件）
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/release]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      YUNX_USE_MIRROR: "false"
+      YUNX_RELEASE_USE_DEBUG_SIGN: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 准备正式 keystore（有 secret 时自动启用）
+        env:
+          YUNX_KEYSTORE_BASE64: ${{ secrets.YUNX_KEYSTORE_BASE64 }}
+          YUNX_KEYSTORE_PASSWORD: ${{ secrets.YUNX_KEYSTORE_PASSWORD }}
+          YUNX_KEY_ALIAS: ${{ secrets.YUNX_KEY_ALIAS }}
+          YUNX_KEY_PASSWORD: ${{ secrets.YUNX_KEY_PASSWORD }}
+        run: |
+          if [ -n "$YUNX_KEYSTORE_BASE64" ]; then
+            echo "$YUNX_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            {
+              echo "YUNX_KEYSTORE_FILE=$RUNNER_TEMP/release.p12"
+              echo "YUNX_KEYSTORE_PASSWORD=$YUNX_KEYSTORE_PASSWORD"
+              echo "YUNX_KEY_ALIAS=$YUNX_KEY_ALIAS"
+              echo "YUNX_KEY_PASSWORD=$YUNX_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "使用正式证书签名"
+          else
+            echo "未配置正式证书，使用仓库 debug 证书签名（自测用）"
+          fi
+
+      - name: 单元测试
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: 打包 release
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: yunx-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
