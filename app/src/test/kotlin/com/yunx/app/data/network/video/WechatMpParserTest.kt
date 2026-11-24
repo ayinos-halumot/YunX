@@ -90,6 +90,39 @@ class WechatMpParserTest {
     }
 
     @Test
+    fun `水印版整图（watermark_info）不会被当成正文图片`() {
+        val html = """
+            <script>
+              window.cgiDataNew = {
+                picture_page_info_list: [
+                  { cdn_url: 'https://mmbiz.qpic.cn/sz_mmbiz_png/AAA/0?wx_fmt=png', width: '1289' },
+                  { cdn_url: 'https://mmbiz.qpic.cn/sz_mmbiz_png/BBB/0?wx_fmt=png', width: '1289' }
+                ],
+                watermark_info: { cdn_url: 'https://mmbiz.qpic.cn/sz_mmbiz_png/WATERMARKED/0?wx_fmt=png' },
+                share_cover: { }
+              };
+            </script>
+        """.trimIndent()
+        val urls = WechatMpParser.extractImageUrls(html)
+        assertEquals(2, urls.size)
+        assertFalse(urls.any { it.contains("WATERMARKED") })
+    }
+
+    @Test
+    fun `封面两个尺寸都能取到`() {
+        val html = """
+            <script>
+              var msg_cdn_url = "https://mmbiz.qpic.cn/sz_mmbiz_jpg/WIDE/0?wx_fmt=jpeg";
+              window.cgiDataNew = { cdn_url_235_1: '', cdn_url_1_1: 'https://mmbiz.qpic.cn/sz_mmbiz_jpg/SQUARE/0?wx_fmt=jpeg' };
+            </script>
+        """.trimIndent()
+        val covers = WechatMpParser.extractCoverUrls(html)
+        assertEquals(2, covers.size)
+        assertTrue(covers[0].contains("WIDE"))
+        assertTrue(covers[1].contains("SQUARE"))
+    }
+
+    @Test
     fun `没有图片的页面返回空列表`() {
         assertTrue(WechatMpParser.extractImageUrls("<html><body>纯文字</body></html>").isEmpty())
     }
