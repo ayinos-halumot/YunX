@@ -2540,6 +2540,15 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **图标**：`res/drawable/logo_wechat_mp.xml` 为自绘占位（绿底双气泡），未引入官方素材；后续可替换。
 
+**水印陷阱（2026-11 实测）**：图片消息页里同时存在**无水印原图**（`picture_page_info_list[].cdn_url`）和
+**已烧水印的整图**（`watermark_info.cdn_url`，同尺寸、右下角带「贴图号·昵称」）。全页抓 `cdn_url:` 会把两者
+一起收进来 → 表现是「明明一张图，结果出现四张、其中一张带水印/加载失败」。所以：
+① 只在 `picture_page_info_list` 块内取图；② 兜底前先把 `watermark_info` 块整段删掉；③ 封面只取两种尺寸
+（长条 `cdn_url_235_1`/`msg_cdn_url`/`og:image`，方图 `cdn_url_1_1`），不碰 `cdn_url_3_4`/`16_9` 等其它变体。
+
+**图集展示方式**：结果页多图默认**连续滚动**；开关在「设置 → 主题与外观 → 图片展示」
+（`SettingsRepository.videoImageInfiniteScroll`，默认 true）。关掉即回到原来的「每 10 张一页 + 分页条」。
+
 **单测**：`app/src/test/kotlin/com/yunx/app/data/network/VideoLinkParserWechatTest.kt`（5 种链接形态 + 不误伤微博/B站）、
 `app/src/test/kotlin/com/yunx/app/data/network/video/WechatMpParserTest.kt`（三种页面形态 + 内联 JS 模板串不误收 + 规格去重）。
 
