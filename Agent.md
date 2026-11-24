@@ -2526,7 +2526,7 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 | kind | 链接形态 | 行为 |
 |---|---|---|
-| `article` | `mp.weixin.qq.com/s/<hash>`、`mp.weixin.qq.com/s?__biz=…` | 抓 HTML：正文图取 `#js_content` 里的 `data-src`，封面取 `var msg_cdn_url`（回退 `og:image`），标题 `msg_title`/`.js_title_inner`，作者 `nickname`/`#js_name`，时间 `var ct`；文章内嵌视频取 `<video src>` 与 `mpvideo.qpic.cn` |
+| `article` | `mp.weixin.qq.com/s/<hash>`、`mp.weixin.qq.com/s?__biz=…` | 抓 HTML：正文图取 `#js_content` 里的 `data-src`（**图片消息/图集**没有 `#js_content`，改从 `picture_page_info_list` 的 `cdn_url:` 取；两者都空才兜底整页 `mmbiz` 地址），全部升级成 `/0` 原图并去重；**封面**（`msg_cdn_url` / `og:image`）作为第一张图片一起进媒体列表（`VideoParseResult.cover` 目前没有 UI 消费方，界面看不到，必须进列表才"显示"且可下载）；标题 `msg_title` / `.js_title_inner` / `og:title`，作者 `nickname` / `#js_name`，时间 `var ct`；文章内嵌视频取 `<video src>` 与 `mpvideo.qpic.cn` |
 | `direct` | `finder.video.qq.com/.../stodownload?...&sign=...`、`mpvideo.qpic.cn`、`mmbiz.qpic.cn` | 直接入队下载（视频按 mp4，图片按 `wx_fmt` 定扩展名），**不需要任何 Cookie**（实测 200 / `video/mp4`） |
 | `sph` | `weixin.qq.com/sph/<id>`、`channels.weixin.qq.com/finder-preview/pages/sph?id=<id>` | 抛 `UNSUPPORTED`：`er_wechat_sph_unsupported`「由于微信限制，无法使用视频分享链接获取内容」 |
 
@@ -2540,7 +2540,11 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **图标**：`res/drawable/logo_wechat_mp.xml` 为自绘占位（绿底双气泡），未引入官方素材；后续可替换。
 
-**单测**：`app/src/test/kotlin/com/yunx/app/data/network/VideoLinkParserWechatTest.kt`（5 种链接形态 + 不误伤微博/B站）。
+**单测**：`app/src/test/kotlin/com/yunx/app/data/network/VideoLinkParserWechatTest.kt`（5 种链接形态 + 不误伤微博/B站）、
+`app/src/test/kotlin/com/yunx/app/data/network/video/WechatMpParserTest.kt`（三种页面形态 + 内联 JS 模板串不误收 + 规格去重）。
+
+**错误文案**：`NOT_FOUND` 的 `userMessage()` 是**固定**文案「内容不存在、已删除或不可见」（不看自定义 message），
+所以「文章在但没媒体」「视频号分享链」这两种情况都用 `UNSUPPORTED` 抛出，才能显示各自的准确提示。
 
 **回退**：删掉 `WechatMpParser.kt`、`VideoPlatform.WECHAT_MP` 枚举项、`VideoParsers.all` 里的注册、
 `VideoLinkParser` 里 7 条微信规则、`MediaNaming.platformTag` 的 `wx` 分支、`PlatformLogos` 映射与 drawable，
