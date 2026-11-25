@@ -164,7 +164,9 @@ object InstagramParser : VideoParser {
     /** 从 `og:title` 取作者昵称：`Instagram 用户 <昵称> : "..."` 里 `<昵称>` 那段 */
     internal fun authorOf(ogTitle: String): String {
         val before = ogTitle.substringBefore("\"", ogTitle).substringBeforeLast(':').trim()
-        val name = before.substringAfter("用户 ", before).substringAfter("user ", before)
+        // 注意：不能把两次 substringAfter 串起来 —— 第二个找不到 "user " 时会把前一个结果覆盖回 before
+        val zh = before.substringAfter("用户 ", before)
+        val name = if (zh != before) zh else before.substringAfter("user ", before)
         return name.trim()
     }
 
