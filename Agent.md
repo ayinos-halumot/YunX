@@ -2580,3 +2580,38 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **回退**：删 `MediaTypeSniffer.kt` 与其单测、`finishDownload` 里的纠正块、`DownloadTaskDao.updateFileName`、
 `DownloadScreen` 的 `buildDownloadEntries` 与 `DownloadListEntry`（恢复原 rootTasks/folderGroups 两段渲染）。
+
+---
+
+### 3.51 Instagram：匿名优先 + 登录仅过墙
+
+新增平台 `VideoPlatform.INSTAGRAM`（登录**可选**），解析器 `InstagramParser`，链接 `/p/` `/reel/` `/reels/` `/tv/`。
+
+**设计约束（用户明确要求）**
+1. **默认匿名**：图片与普通视频不登录就能下；
+2. **登录只用来过「登录并继续 / 有年龄限制」**，不自动弹登录、不自动重试；
+3. **尽量降低封号风险**：只用页面可视数据 + 媒体请求，**不调私有接口**（第三方脚本会请求
+   `i.instagram.com/api/v1/media/{id}/info/`，风险高，这里不做）；带 Cookie 时解析前随机等 0.9–2.1s，
+   脚本翻页也按 0.9–1.6s 随机间隔；命中「操作频繁」立即抛 `RATE_LIMITED` 停机。
+
+**取数方式（2026-11 实测依据）**
+- 页面用 `HeadlessWebView.loadAndExtract`（与抖音同一套），UA 用 `VideoHttp.UA_CHROME`（桌面 Chrome，别用 WebView 指纹）；
+- **图片**：`img` 且 `naturalWidth>=1000` 为帖子大图；多图轮播靠点「下一步/Next」逐张收（脚本内最多 12 次）；
+- **视频**：`<video src>` 是 `blob:`，抓 DOM 无用；改从 `performance.getEntriesByType('resource')` 里取
+  `.mp4` 请求地址。IG 是 **DASH 分轨**（视频轨 `/m86/` + 音频轨 `/m78/`，音频 efg 含 `heaac_audio`），
+  因此把音频地址填进 `VideoMedia.audioUrl`，交给现有的 `DashMuxer` 合轨（与 B 站同一条链路）；
+- **CDN 地址不需要 Cookie**（实测 `credentials:'omit'` 返回 206），但带 `oe=` 时效，必须现取现用。
+
+**命名信息**（全部来自 `og:title` / `og:description`，匿名可得）
+- 作者 = `og:title` 里「Instagram 用户 <昵称> : "…"」的昵称；
+- 作者ID = `og:description` 里 `… - <username>，<日期> : "…"` 的 username（IG 的数字 uid 匿名拿不到）；
+- 文案 = 引号内文本；时间 = `og:description` 里的日期（英文 `November 13, 2026` / 中文 `2026年11月13日`）。
+- 平台简称 `ig`（`MediaNaming.platformTag`）。
+
+**错误文案**：`er_ig_login_required`（需登录）、`er_ig_rate_limited`（频繁已停）、`er_ig_no_media`、`er_ig_no_data`，
+均走 `UNSUPPORTED`（`NOT_FOUND` 的文案是固定的「内容不存在/已删除」，会误导）。
+
+**已知边界**：年龄限制帖匿名只能拿封面；轮播超过 12 张的部分取不到（脚本上限）；CDN 链接会过期。
+
+**回退**：删 `InstagramParser.kt` 与两个单测、枚举项、`VideoParsers.all` 注册、`VideoLinkParser` 4 条 IG 规则、
+`MediaNaming` 的 `ig` 分支、`PlatformLogos` 映射与 drawable、5 语言的两组字符串。
