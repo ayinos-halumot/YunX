@@ -123,6 +123,32 @@ class WechatMpParserTest {
     }
 
     @Test
+    fun `图片消息里的实况动图能成对提取`() {
+        val html = """
+            <script>
+              window.cgiDataNew = { picture_page_info_list: [
+                { cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/AAA/0?wx_fmt=jpeg', width: '1920' * 1,
+                  live_photo: { vid: 'live_1', format_info: [ { format_id: '0' * 1, url: 'https://bcvideo.qpic.cn/aaa.f0.mp4?dis_k=1\x26amp;dis_t=2' } ] } },
+                { cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/BBB/0?wx_fmt=jpeg', width: '1920' * 1,
+                  live_photo: { vid: '', format_info: [ ] } }
+              ] };
+            </script>
+        """.trimIndent()
+        val items = WechatMpParser.extractPictureItems(html)
+        assertEquals(2, items.size)
+        assertEquals("https://mmbiz.qpic.cn/mmbiz_jpg/AAA/0?wx_fmt=jpeg", items[0].first)
+        assertTrue(items[0].second.startsWith("https://bcvideo.qpic.cn/aaa.f0.mp4"))
+        assertTrue("动图地址应还原 & 转义：${items[0].second}", items[0].second.contains("&dis_t=2"))
+        assertTrue(items[1].second.isEmpty())
+    }
+
+    @Test
+    fun `微信地址的两层转义都能还原`() {
+        assertEquals("a.mp4?x=1&y=2", WechatMpParser.decodeWechatUrl("a.mp4?x=1\\x26amp;y=2"))
+        assertEquals("a?x=1&y=2", WechatMpParser.decodeWechatUrl("a?x=1&y=2"))
+    }
+
+    @Test
     fun `没有图片的页面返回空列表`() {
         assertTrue(WechatMpParser.extractImageUrls("<html><body>纯文字</body></html>").isEmpty())
     }
