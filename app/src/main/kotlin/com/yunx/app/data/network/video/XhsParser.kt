@@ -252,7 +252,10 @@ object XhsParser : VideoParser {
         val base = fileBase(title, link)
 
         // 原始字段（explore 是 urlDefault）：带水印，图集要经 resolveImages 换算+探测
-        val rawImages = imageUrls(note.optJSONArray("imageList")) { rawImageUrlOf(it) }
+        // ★ 实况照片（Live Photo）：每张图自己带 `livePhoto: true` 与 `stream.h264[0].masterUrl`，
+        //   必须按「同一张图」成对取，否则只能下到静图（与图片数组平行下标不保证稳定）。
+        val rawItems = imageItems(note.optJSONArray("imageList")) { rawImageUrlOf(it) }
+        val rawImages = rawItems.map { it.first }
         val video = pickVideo(note)
 
         val medias = mutableListOf<VideoMedia>()
@@ -278,12 +281,18 @@ object XhsParser : VideoParser {
         } else {
             val images = resolveImages(rawImages, mediaHeaders)
             images.urls.forEachIndexed { index, url ->
+                val motion = rawItems.getOrNull(index)?.second.orEmpty()
                 medias += VideoMedia(
                     url = url,
                     kind = VideoMediaKind.IMAGE,
                     fileName = "${base}_${index + 1}.jpg",
                     headers = mediaHeaders,
-                    quality = AppStrings.get(R.string.em_quality_original)
+                    quality = if (motion.isNotBlank()) {
+                        AppStrings.get(R.string.em_quality_motion)
+                    } else {
+                        AppStrings.get(R.string.em_quality_original)
+                    },
+                    motionUrl = motion
                 )
             }
             notice = images.notice
@@ -327,7 +336,8 @@ object XhsParser : VideoParser {
         val base = fileBase(title, link)
 
         // 原始字段（discovery 是 url、preload 是 urlSizeLarge）：都带水印，图集要经 resolveImages 换算+探测
-        val rawNoteImages = imageUrls(note.optJSONArray("imageList")) { rawImageUrlOf(it) }
+        val rawNoteItems = imageItems(note.optJSONArray("imageList")) { rawImageUrlOf(it) }
+        val rawNoteImages = rawNoteItems.map { it.first }
         val preloadImages = imageUrls(noteRoot.optJSONObject("normalNotePreloadData")?.optJSONArray("imagesList")) {
             it.str("urlSizeLarge").ifBlank { it.str("url") }
         }
@@ -350,12 +360,18 @@ object XhsParser : VideoParser {
         } else {
             val images = resolveImages(rawNoteImages, mediaHeaders)
             images.urls.forEachIndexed { index, url ->
+                val motion = rawNoteItems.getOrNull(index)?.second.orEmpty()
                 medias += VideoMedia(
                     url = url,
                     kind = VideoMediaKind.IMAGE,
                     fileName = "${base}_${index + 1}.jpg",
                     headers = mediaHeaders,
-                    quality = AppStrings.get(R.string.em_quality_original)
+                    quality = if (motion.isNotBlank()) {
+                        AppStrings.get(R.string.em_quality_motion)
+                    } else {
+                        AppStrings.get(R.string.em_quality_original)
+                    },
+                    motionUrl = motion
                 )
             }
             notice = images.notice
@@ -408,6 +424,38 @@ object XhsParser : VideoParser {
             if (url.isNotBlank()) result += url
         }
         return result
+    }
+
+    /** 图片项（静图地址 + 实况动图地址）：与 [imageUrls] 同序，空项会被跳过 */
+    private fun imageItems(array: JSONArray?, pick: (JSONObject) -> String): List<Pair<String, String>> {
+        if (array == null) return emptyList()
+        val result = mutableListOf<Pair<String, String>>()
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val url = pick(obj)
+            if (url.isNotBlank()) result += url to motionUrlOf(obj)
+        }
+        return result
+    }
+
+    /**
+     * 实况照片的动图地址：`imageList[i].livePhoto == true` 时，取 `stream` 里第一条可用的 `masterUrl`
+     * （按 h264 → h265 → av1 → h266 逐档降级，与 [pickVideo] 同一套优先级）。
+     *
+     * 2026-11 实测（`__INITIAL_STATE__.note.noteDetailMap.*.note.imageList[]`）：
+     * `livePhoto: true` + `stream.h264[0].masterUrl = http://sns-video-v4.xhscdn.com/stream/…mp4?…`
+     */
+    internal fun motionUrlOf(item: JSONObject?): String {
+        if (item == null || !item.optBoolean("livePhoto")) return ""
+        val stream = item.optJSONObject("stream") ?: return ""
+        for (key in listOf("h264", "h265", "av1", "h266")) {
+            val arr = stream.optJSONArray(key) ?: continue
+            for (i in 0 until arr.length()) {
+                val url = arr.optJSONObject(i)?.str("masterUrl").orEmpty()
+                if (url.isNotBlank()) return url
+            }
+        }
+        return ""
     }
 
     /**
