@@ -2643,6 +2643,12 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 - 微信 `mp.weixin.qq.com/s/zw5K83x931swBoZXBSPWFQ` → `picture_page_info_list[0].live_photo.format_info[0].url` 为 mp4
 - 微博 `weibo.com/1838871717/5366642218893836` → `m.weibo.cn/statuses/show` 返回 `pics[0].type=livephoto` + `videoSrc`（原本已支持，用作回归参照）
 
+**2026-11-25 补丁（1.4.1-dev2）**：
+① 微信 `picture_page_info_list` 每一项内部还有 `watermark_info.cdn_url` 与 `original_info.cdn_url`，一张图 2~3 个 cdn_url ——
+只认项开头的主 cdn_url（排掉嵌套项），否则张数翻倍且动图错配；也不能用 `section()`（结束标记会命中项内的 `watermark_info`，
+把列表从第 2 项截断，表现为「3 图只出 1 图」）。
+② 小红书动图 `masterUrl` 是 `http://sns-video-vN.xhscdn.com`，Android 默认禁明文 → 下载/预览报 `CLEARTEXT not permitted`，解析时统一升级为 https。
+
 **已知限制**：`MotionPhotoWriter` 产物是 `JPEG+MP4`，iOS 与部分机型相册只显示静图（格式兼容，不是没下到）；
 抖音动图按用户要求暂不处理。
 
