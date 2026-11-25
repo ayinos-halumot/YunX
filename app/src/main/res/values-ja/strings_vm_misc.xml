@@ -228,9 +228,11 @@
     <string name="vm_video_platform_weibo">微博</string>
     <string name="vm_video_platform_acfun">AcFun</string>
     <string name="vm_video_platform_wechat_mp">WeChat 記事</string>
+    <string name="vm_video_platform_instagram">Instagram</string>
     <string name="vm_video_platform_bilibili">哔哩哔哩</string>
     <string name="vm_video_platform_pixiv">Pixiv</string>
     <string name="vm_video_benefit_xhs">小红书の Web 版はログインしないとノートを閲覧できないため、未ログインでは解析に失敗します</string>
+    <string name="vm_video_benefit_instagram">未ログインでも画像と通常の動画はダウンロードできます。ログインは「ログイン必須／年齢制限」の内容を見るためだけに使います。アカウントのリスク管理を避けるため、サブアカウントの利用と低い解析頻度を推奨します。</string>
     <string name="vm_video_benefit_bilibili">ログインするとより高画質で解析できます。未ログインでは低画質の単一ファイルのみ取得できます</string>
     <string name="vm_video_benefit_pixiv">未ログインでは一部の公開作品のみ取得できます。ブラウザの Cookie を貼り付けるとすべての作品（R18 および制限作品を含む）を解析できます</string>
 </resources>
