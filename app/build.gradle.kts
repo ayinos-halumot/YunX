@@ -53,8 +53,8 @@ android {
         // 原因与实测证据见 Agent.md §3.11，勿降回 23。
         minSdk = 24
         targetSdk = 34
-        versionCode = 15
-        versionName = "1.3.1"
+        versionCode = 16
+        versionName = "1.4.1-dev1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -89,7 +89,13 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = if (releaseSigningReady) signingConfigs.getByName("release") else null
+            // CI 没有正式证书时，允许用仓库自带的 debug 证书签 release（仅自测用：R8 仍生效、可直接覆盖安装 debug 包）。
+            // 正式发布仍走 YUNX_KEYSTORE_* 四个环境变量（见文件顶部）。
+            signingConfig = when {
+                releaseSigningReady -> signingConfigs.getByName("release")
+                System.getenv("YUNX_RELEASE_USE_DEBUG_SIGN") == "1" -> signingConfigs.getByName("debug")
+                else -> null
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
