@@ -97,4 +97,10 @@
     <!-- WeChat -->
     <string name="er_wechat_sph_unsupported">En raison des restrictions de WeChat, les vidéos ne peuvent pas être récupérées via un lien de partage</string>
     <string name="er_wechat_no_media">Aucune image ou vidéo téléchargeable dans cet article</string>
+
+    <!-- Instagram -->
+    <string name="er_ig_login_required">Ce contenu nécessite une connexion Instagram (connectez-vous dans la page comptes puis réessayez)</string>
+    <string name="er_ig_rate_limited">Instagram signale trop de requêtes ; analyse arrêtée, réessayez plus tard</string>
+    <string name="er_ig_no_media">Aucune image ou vidéo téléchargeable dans cette publication</string>
+    <string name="er_ig_no_data">Instagram n\'a renvoyé aucune donnée exploitable</string>
 </resources>
