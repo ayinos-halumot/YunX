@@ -81,14 +81,18 @@ object WechatMpParser : VideoParser {
 
         val medias = mutableListOf<VideoMedia>()
 
-        // ① 正文图片（抽成纯函数，便于单测）
-        // ② 封面两个尺寸：长条（2.35:1）+ 方图（1:1），按用户要求都放进列表
+        // ① 正文图片（抽成纯函数，便于单测）。图片消息里每张图可能自带「实况照片」的动图资源，
+        //    所以这里取的是成对结构（静图 + 可选动图），再统一拼进媒体列表。
+        val pictureItems = extractPictureItems(html)
         val imageUrls = LinkedHashSet<String>()
+        // 封面也算可下载的图（界面上没有单独封面位）：两个尺寸都放进列表
         imageUrls += extractCoverUrls(html)
-        imageUrls += extractImageUrls(html)
-
-        // 封面也算一张可下载的图：界面上没有单独的封面位（`VideoParseResult.cover` 目前没有 UI 消费方），
-        // 直接把两个尺寸（长条 + 方图）放进媒体列表，用户既能"看到"也能下载。
+        if (pictureItems.isNotEmpty()) {
+            pictureItems.forEach { imageUrls += it.first }
+        } else {
+            imageUrls += extractImageUrls(html)
+        }
+        val motionByImage = pictureItems.associate { originalImage(it.first) to it.second }
 
         // 归一化成 /0 原图后再去重：同一张图在页面里可能同时出现缩略与原始两种规格
         val normalized = LinkedHashSet<String>(imageUrls)
@@ -96,12 +100,18 @@ object WechatMpParser : VideoParser {
         var index = 0
         for (url in normalized) {
             index += 1
+            val motion = motionByImage[url].orEmpty()
             medias += VideoMedia(
                 url = url,
                 kind = VideoMediaKind.IMAGE,
-                fileName = "${base}_$index.${imageExtension(url)}",
+                fileName = "${base}_$index.${if (motion.isNotBlank()) "jpg" else imageExtension(url)}",
                 headers = mpMediaHeaders,
-                quality = AppStrings.get(R.string.em_quality_original)
+                quality = if (motion.isNotBlank()) {
+                    AppStrings.get(R.string.em_quality_motion)
+                } else {
+                    AppStrings.get(R.string.em_quality_original)
+                },
+                motionUrl = motion
             )
         }
 
@@ -143,6 +153,33 @@ object WechatMpParser : VideoParser {
             medias = medias
         )
     }
+
+    /**
+     * **纯函数**：图片消息（图集）里「静图 + 可选实况动图」的成对清单。
+     *
+     * 结构（2026-11 实测）：`picture_page_info_list` 的每一项形如
+     * ```
+     * { cdn_url: 'https://mmbiz.qpic.cn/.../0?wx_fmt=jpeg', width: '1920'*1, ...
+     *   live_photo: { vid: 'live_xxx', format_info: [ { url: 'https://bcvideo.qpic.cn/....mp4?dis_k=...\x26amp;...' } ] } }
+     * ```
+     * 以前只取 `cdn_url`，`live_photo` 整段被丢掉 → 实况照片永远只能下到静图。
+     */
+    internal fun extractPictureItems(html: String): List<Pair<String, String>> {
+        val block = section(html, "picture_page_info_list", listOf("share_cover", "watermark_info")) ?: return emptyList()
+        val matches = PICTURE_ITEM_CDN.findAll(block).toList()
+        if (matches.isEmpty()) return emptyList()
+        return matches.mapIndexed { i, m ->
+            val start = m.range.last + 1
+            val end = matches.getOrNull(i + 1)?.range?.first ?: block.length
+            val seg = block.substring(start, minOf(end, start + 4_000))
+            val motion = LIVE_PHOTO_ITEM.find(seg)?.groupValues?.getOrNull(1).orEmpty()
+            decodeWechatUrl(m.groupValues[1]) to decodeWechatUrl(motion)
+        }
+    }
+
+    /** 微信 JSON 里的 `&` 会被转义成 `\x26amp;`（HTML 里的 `&amp;` 再被 JS 转义一层），要还原两次 */
+    internal fun decodeWechatUrl(url: String): String =
+        url.replace("\\x26", "&").replace("\\u0026", "&").replace("&amp;", "&")
 
     // ---------------------------------------------------------------- 直链
 
@@ -278,6 +315,10 @@ object WechatMpParser : VideoParser {
     private val IMG_DATA_SRC = Regex("""data-src="(https?://[^"]+)"""")
     /** 图片消息（图集）里的图片清单：`picture_page_info_list: [ { cdn_url: 'https://…' } ]` */
     private val CDN_URL_IN_PICTURE = Regex("""cdn_url:\s*'(https?://[^']+)'""")
+    /** 图片消息里每一项的静图地址（与 CDN_URL_IN_PICTURE 同源，单独命名便于阅读） */
+    private val PICTURE_ITEM_CDN = Regex("""cdn_url:\s*'(https?://[^']+)'""")
+    /** 实况照片的动图地址：`live_photo: { vid: …, format_info: [ { url: 'https://….mp4…' } ] }` */
+    private val LIVE_PHOTO_ITEM = Regex("""live_photo:\s*\{[^}]*?format_info:\s*\[\s*\{[^}]*?url:\s*'([^']+)'""")
     /** 封面：长条 2.35:1 */
     private val COVER_235_1 = Regex("""cdn_url_235_1:\s*'(https?://[^']+)'""")
     private val COVER_CDN_PLAIN = Regex("""\bcdn_url:\s*'(https?://[^']+)'""")
