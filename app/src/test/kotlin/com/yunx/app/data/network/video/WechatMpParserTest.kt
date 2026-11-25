@@ -143,6 +143,25 @@ class WechatMpParserTest {
     }
 
     @Test
+    fun `一张图带水印版与原始信息时只算一张`() {
+        val html = """
+            <script>
+              window.cgiDataNew = { picture_page_info_list: [
+                { cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/AAA/0?x=1', width: '1920' * 1,
+                  watermark_info: { cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/WWW/0?x=1', width: '1920' * 1 },
+                  original_info: { show_original: true, cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/OOO/0?x=1' } },
+                { cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/BBB/0?x=1', width: '1920' * 1,
+                  watermark_info: { cdn_url: 'https://mmbiz.qpic.cn/mmbiz_jpg/VVV/0?x=1' } }
+              ] };
+            </script>
+        """.trimIndent()
+        val items = WechatMpParser.extractPictureItems(html)
+        assertEquals(2, items.size)
+        assertTrue(items[0].first.contains("/AAA/"))
+        assertTrue(items[1].first.contains("/BBB/"))
+    }
+
+    @Test
     fun `微信地址的两层转义都能还原`() {
         assertEquals("a.mp4?x=1&y=2", WechatMpParser.decodeWechatUrl("a.mp4?x=1\\x26amp;y=2"))
         assertEquals("a?x=1&y=2", WechatMpParser.decodeWechatUrl("a?x=1&y=2"))
