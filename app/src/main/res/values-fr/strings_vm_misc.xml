@@ -228,10 +228,12 @@
     <string name="vm_video_platform_kuaishou">Kuaishou</string>
     <string name="vm_video_platform_weibo">Weibo</string>
     <string name="vm_video_platform_wechat_mp">Article WeChat</string>
+    <string name="vm_video_platform_instagram">Instagram</string>
     <string name="vm_video_platform_acfun">AcFun</string>
     <string name="vm_video_platform_bilibili">Bilibili</string>
     <string name="vm_video_platform_pixiv">Pixiv</string>
     <string name="vm_video_benefit_xhs">La version web de Xiaohongshu exige une connexion pour consulter les publications ; l\'analyse échouera sans connexion.</string>
+    <string name="vm_video_benefit_instagram">Les images et les vidéos ordinaires fonctionnent sans connexion ; la connexion ne sert qu\'aux contenus réservés ou avec limite d\'âge. Utilisez un compte secondaire et une fréquence faible pour éviter les contrôles de compte.</string>
     <string name="vm_video_benefit_bilibili">La connexion permet une meilleure résolution ; sans connexion, vous n\'obtenez qu\'un fichier unique de très basse qualité.</string>
     <string name="vm_video_benefit_pixiv">Sans connexion, seules certaines œuvres publiques sont disponibles ; collez le cookie de votre navigateur pour analyser toutes les œuvres (y compris R18 et les œuvres restreintes).</string>
 </resources>
