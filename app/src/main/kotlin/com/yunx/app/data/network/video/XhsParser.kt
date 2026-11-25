@@ -452,7 +452,9 @@ object XhsParser : VideoParser {
             val arr = stream.optJSONArray(key) ?: continue
             for (i in 0 until arr.length()) {
                 val url = arr.optJSONObject(i)?.str("masterUrl").orEmpty()
-                if (url.isNotBlank()) return url
+                // CDN 给的是 http://sns-video-vN.xhscdn.com/…；Android 默认禁止明文流量，
+                // 下载与在线预览都会报 CLEARTEXT not permitted，这里统一升级为 https。
+                if (url.isNotBlank()) return url.replaceFirst("http://", "https://")
             }
         }
         return ""
