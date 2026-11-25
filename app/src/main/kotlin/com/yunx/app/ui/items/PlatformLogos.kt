@@ -73,6 +73,7 @@ fun VideoPlatform.logoRes(): Int = when (this) {
     VideoPlatform.BILIBILI -> R.drawable.logo_bilibili
     VideoPlatform.PIXIV -> R.drawable.logo_pixiv
     VideoPlatform.WECHAT_MP -> R.drawable.logo_wechat_mp
+    VideoPlatform.INSTAGRAM -> R.drawable.logo_instagram
 }
 
 /**
