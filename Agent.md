@@ -2615,3 +2615,36 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **回退**：删 `InstagramParser.kt` 与两个单测、枚举项、`VideoParsers.all` 注册、`VideoLinkParser` 4 条 IG 规则、
 `MediaNaming` 的 `ig` 分支、`PlatformLogos` 映射与 drawable、5 语言的两组字符串。
+
+---
+
+### 3.52 动图 / 实况照片：补齐小红书与微信的「会动那一半」
+
+下载链路本来就支持（`VideoMedia.motionUrl` → `DownloadManager.motionPhotoDownload` → `MotionPhotoWriter`），
+问题只在解析层没取到动图资源。2026-11 用真实链接核对后补齐：
+
+**小红书**（`XhsParser`）
+- 数据位置（`__INITIAL_STATE__.note.noteDetailMap.*.note.imageList[i]`）：
+  `livePhoto: true` + `stream.h264[0].masterUrl`（`sns-video-v4.xhscdn.com/stream/…mp4`）。
+- 新增 `motionUrlOf(item)`（h264→h265→av1→h266 降级）与 `imageItems()`（**按项成对**取「静图 + 动图」，
+  不再依赖平行数组下标），两个入口（explore / search）都改成成对结构，`VideoMedia.motionUrl` 填动图地址、
+  `quality` 显示「动图」。
+- 静图仍走 `resolveImages` 去水印；动图地址**不做去水印换算**（原始 CDN 直链）。
+
+**微信**（`WechatMpParser`）
+- 数据位置（`picture_page_info_list[i]`）：`live_photo.format_info[0].url`（`bcvideo.qpic.cn/…f0.mp4`）。
+- 新增 `extractPictureItems(html)`：以每个 `cdn_url` 为起点、截到下一个 `cdn_url` 之前，再在该片段里找
+  `live_photo.format_info[].url` —— **按项成对**，不会把别张图的动图配错。
+- 微信的 `&` 被转义两层（`\x26amp;`），新增 `decodeWechatUrl()` 还原；实况图文件名统一给 `.jpg`
+  （`MotionPhotoWriter` 产出的就是动态照片 JPEG）。
+
+**验证样本**（已核对字段，非猜测）
+- 小红书 `xhslink.cn/o/…` → 笔记 5 图，其中 4 张 `livePhoto:true` 且有 `h264.masterUrl`
+- 微信 `mp.weixin.qq.com/s/zw5K83x931swBoZXBSPWFQ` → `picture_page_info_list[0].live_photo.format_info[0].url` 为 mp4
+- 微博 `weibo.com/1838871717/5366642218893836` → `m.weibo.cn/statuses/show` 返回 `pics[0].type=livephoto` + `videoSrc`（原本已支持，用作回归参照）
+
+**已知限制**：`MotionPhotoWriter` 产物是 `JPEG+MP4`，iOS 与部分机型相册只显示静图（格式兼容，不是没下到）；
+抖音动图按用户要求暂不处理。
+
+**回退**：删 `XhsParser` 的 `motionUrlOf/imageItems` 与两处调用（恢复 `imageUrls` 单值结构）、
+`WechatMpParser` 的 `extractPictureItems/decodeWechatUrl` 与图片循环里的 motion 分支。
