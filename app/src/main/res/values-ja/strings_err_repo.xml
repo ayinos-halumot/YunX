@@ -97,4 +97,10 @@
     <!-- WeChat -->
     <string name="er_wechat_sph_unsupported">WeChat の制限により、共有リンクから動画を取得できません</string>
     <string name="er_wechat_no_media">この記事にダウンロード可能な画像・動画がありません</string>
+
+    <!-- Instagram -->
+    <string name="er_ig_login_required">このコンテンツは Instagram へのログインが必要です（アカウント画面でログインして再試行）</string>
+    <string name="er_ig_rate_limited">Instagram がリクエスト過多を通知しました。解析を中止しました。しばらくしてから再試行してください</string>
+    <string name="er_ig_no_media">この投稿にダウンロード可能な画像・動画がありません</string>
+    <string name="er_ig_no_data">Instagram から解析可能なデータが返されませんでした</string>
 </resources>
