@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Instagram 平台图标（自绘占位：粉紫渐变底 + 白色相机轮廓），未使用官方素材，后续可替换。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <path
+        android:pathData="M10,3h28a7,7 0,0 1,7 7v28a7,7 0,0 1,-7 7H10a7,7 0,0 1,-7 -7V10a7,7 0,0 1,7 -7z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:startX="4" android:startY="4"
+                android:endX="44" android:endY="44"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFF9CE33" />
+                <item android:offset="0.5" android:color="#FFEE2A7B" />
+                <item android:offset="1" android:color="#FF6228D7" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 相机外框 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.6"
+        android:pathData="M15,14h18a3,3 0,0 1,3 3v14a3,3 0,0 1,-3 3H15a3,3 0,0 1,-3 -3V17a3,3 0,0 1,3 -3z" />
+
+    <!-- 镜头 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.6"
+        android:pathData="M24,19.5a4.5,4.5 0,1 0,0.01 0z" />
+
+    <!-- 闪光点 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31.2,16.6a1.4,1.4 0,1 1,-0.01 0z" />
+</vector>
