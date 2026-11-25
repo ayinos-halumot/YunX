@@ -227,10 +227,12 @@
     <string name="vm_video_platform_kuaishou">快手</string>
     <string name="vm_video_platform_weibo">微博</string>
     <string name="vm_video_platform_wechat_mp">微信公眾號</string>
+    <string name="vm_video_platform_instagram">Instagram</string>
     <string name="vm_video_platform_acfun">AcFun</string>
     <string name="vm_video_platform_bilibili">嗶哩嗶哩</string>
     <string name="vm_video_platform_pixiv">Pixiv</string>
     <string name="vm_video_benefit_xhs">小紅書網頁端要求登入後才能查看筆記，未登入解析會失敗</string>
+    <string name="vm_video_benefit_instagram">未登入也能下載圖片與一般影片；登入僅用於查看「需要登入／年齡限制」的內容。建議使用小號並放慢解析頻率，以免帳號被風控。</string>
     <string name="vm_video_benefit_bilibili">登入後可解析更高清晰度；未登入只能拿到很低清的單檔案</string>
     <string name="vm_video_benefit_pixiv">未登入只能拿到一部分公開作品；貼上瀏覽器裡的 Cookie 後可解析全部作品（含 R18 與受限作品）</string>
 </resources>
