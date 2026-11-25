@@ -169,6 +169,23 @@ object VideoLinkParser {
         Rule(
             VideoPlatform.WECHAT_MP, "direct",
             Regex("""mmbiz\.qpic\.cn/[^\s"'<>]+""", RegexOption.IGNORE_CASE)
+        ),
+        // ---------- Instagram ----------
+        Rule(
+            VideoPlatform.INSTAGRAM, "post",
+            Regex("""instagram\.com/(?:[A-Za-z]{2}/)?p/([A-Za-z0-9_\-]+)""", RegexOption.IGNORE_CASE)
+        ),
+        Rule(
+            VideoPlatform.INSTAGRAM, "post",
+            Regex("""instagram\.com/(?:[A-Za-z]{2}/)?reel/([A-Za-z0-9_\-]+)""", RegexOption.IGNORE_CASE)
+        ),
+        Rule(
+            VideoPlatform.INSTAGRAM, "post",
+            Regex("""instagram\.com/(?:[A-Za-z]{2}/)?reels/([A-Za-z0-9_\-]+)""", RegexOption.IGNORE_CASE)
+        ),
+        Rule(
+            VideoPlatform.INSTAGRAM, "post",
+            Regex("""instagram\.com/(?:[A-Za-z]{2}/)?tv/([A-Za-z0-9_\-]+)""", RegexOption.IGNORE_CASE)
         )
     )
 
