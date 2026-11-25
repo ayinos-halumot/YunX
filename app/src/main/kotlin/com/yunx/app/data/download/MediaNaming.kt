@@ -53,6 +53,7 @@ object MediaNaming {
         VideoPlatform.BILIBILI -> "bili"
         VideoPlatform.PIXIV -> "pixiv"
         VideoPlatform.WECHAT_MP -> "wx"
+        VideoPlatform.INSTAGRAM -> "ig"
     }
 
     /** 类型段（英文）：动图单独算 motion，其余按媒体类型 */
