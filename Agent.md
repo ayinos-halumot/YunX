@@ -2613,6 +2613,10 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **已知边界**：年龄限制帖匿名只能拿封面；轮播超过 12 张的部分取不到（脚本上限）；CDN 链接会过期。
 
+**2026-11-25 补丁（1.4.1-dev3）**：IG 的 DASH 分轨是 **CMAF(fMP4)**，Android `MediaExtractor` 取不到样本 →
+`DashMuxer` 合轨必然失败（提示「分轨合轨失败」）。改为**优先用页面 HTML 里的 `video_versions`**
+（type 101/102/103，实测 1.2MB/24s，含 avc1+mp4a 双轨的单文件 mp4），直接下载即播；
+只有拿不到 `video_versions` 时才退回 DASH 分轨（可能仍失败，但至少不影响正常帖子）。
 **回退**：删 `InstagramParser.kt` 与两个单测、枚举项、`VideoParsers.all` 注册、`VideoLinkParser` 4 条 IG 规则、
 `MediaNaming` 的 `ig` 分支、`PlatformLogos` 映射与 drawable、5 语言的两组字符串。
 
