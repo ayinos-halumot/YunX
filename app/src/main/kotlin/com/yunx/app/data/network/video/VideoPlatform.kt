@@ -122,7 +122,20 @@ enum class VideoPlatform(
      * 纯解析平台，**不需要登录**：公众号正文/图床对匿名开放，视频号签名直链也不需要 Cookie。
      * 视频号分享链接（`weixin.qq.com/sph/...`）归到本平台，但只做「如实报错」，见 `WechatMpParser`。
      */
-    WECHAT_MP(R.string.vm_video_platform_wechat_mp);
+    WECHAT_MP(R.string.vm_video_platform_wechat_mp),
+
+    /**
+     * Instagram：`/p/` 图片帖与 `/reel/` 视频帖。
+     *
+     * **登录可选**：匿名就能下图片与普通视频；登录只用来过「登录墙 / 年龄限制」。
+     * 带登录态时解析器会放慢节奏（见 `InstagramParser`），以降低账号风控风险。
+     */
+    INSTAGRAM(
+        displayNameRes = R.string.vm_video_platform_instagram,
+        loginUrl = "https://www.instagram.com/accounts/login/",
+        cookieDomain = "instagram.com",
+        loginBenefitRes = R.string.vm_video_benefit_instagram
+    );
 
     /** 展示名 */
     val displayName: String
