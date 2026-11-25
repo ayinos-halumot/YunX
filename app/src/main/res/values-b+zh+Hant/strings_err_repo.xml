@@ -97,4 +97,10 @@
     <!-- 微信 -->
     <string name="er_wechat_sph_unsupported">由於微信限制，無法使用影片分享連結取得內容</string>
     <string name="er_wechat_no_media">該文章沒有可下載的圖片或影片</string>
+
+    <!-- Instagram -->
+    <string name="er_ig_login_required">此內容需要登入 Instagram 才能查看（可在帳號頁登入後重試）</string>
+    <string name="er_ig_rate_limited">Instagram 提示操作過於頻繁，已停止解析，請稍後再試</string>
+    <string name="er_ig_no_media">此貼文沒有可下載的圖片或影片</string>
+    <string name="er_ig_no_data">Instagram 頁面沒有回傳可解析的資料</string>
 </resources>
