@@ -97,4 +97,10 @@
     <!-- WeChat -->
     <string name="er_wechat_sph_unsupported">Due to WeChat restrictions, videos cannot be retrieved from a share link</string>
     <string name="er_wechat_no_media">No downloadable images or videos in this article</string>
+
+    <!-- Instagram -->
+    <string name="er_ig_login_required">This content requires Instagram login to view (sign in on the accounts page and retry)</string>
+    <string name="er_ig_rate_limited">Instagram says too many requests; parsing stopped, please try again later</string>
+    <string name="er_ig_no_media">No downloadable images or videos in this post</string>
+    <string name="er_ig_no_data">Instagram returned no parsable data</string>
 </resources>
