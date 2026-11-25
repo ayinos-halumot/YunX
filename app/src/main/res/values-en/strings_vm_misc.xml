@@ -227,10 +227,12 @@
     <string name="vm_video_platform_kuaishou">Kuaishou</string>
     <string name="vm_video_platform_weibo">Weibo</string>
     <string name="vm_video_platform_wechat_mp">WeChat article</string>
+    <string name="vm_video_platform_instagram">Instagram</string>
     <string name="vm_video_platform_acfun">AcFun</string>
     <string name="vm_video_platform_bilibili">Bilibili</string>
     <string name="vm_video_platform_pixiv">Pixiv</string>
     <string name="vm_video_benefit_xhs">Xiaohongshu requires login on its web version to view posts; parsing will fail without login.</string>
+    <string name="vm_video_benefit_instagram">Images and ordinary videos work without login; sign-in is only for posts that require login or are age-restricted. Use a secondary account and low parse frequency to avoid account risk controls.</string>
     <string name="vm_video_benefit_bilibili">Logging in allows higher resolution; without login you only get a very low-quality single file.</string>
     <string name="vm_video_benefit_pixiv">Without login only some public works are available; paste the cookie from your browser to resolve all works (including R18 and restricted works).</string>
 </resources>
