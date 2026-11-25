@@ -94,9 +94,15 @@ object InstagramParser : VideoParser {
             (0 until arr.length()).mapNotNull { arr.optString(it).takeIf(String::isNotBlank) }
         }.orEmpty()
 
-        // DASH 分轨：音频轨（m78 / efg 里带 audio）与视频轨分开
-        val audioUrl = mp4s.firstOrNull { isAudioTrack(it) }.orEmpty()
-        val videoUrl = mp4s.firstOrNull { !isAudioTrack(it) }.orEmpty()
+        // ① 优先「单文件渐进式 mp4」：页面 HTML 的 `video_versions` 里有 type 101/102/103，
+        //    实测带 avc1 + mp4a 双轨、1.2MB/24s，直接下载即可播放 —— 不需要合轨，
+        //    也就绕开了 Android MediaExtractor 对 CMAF（fMP4）分轨不兼容的问题。
+        val progressive = obj.optJSONArray("prog")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).takeIf(String::isNotBlank) }
+        }.orEmpty()
+        // ② 兜底：DASH 分轨（视频 m86 + 音频 m78），没有渐进式时才用
+        val audioUrl = if (progressive.isEmpty()) mp4s.firstOrNull { isAudioTrack(it) }.orEmpty() else ""
+        val videoUrl = progressive.firstOrNull() ?: mp4s.firstOrNull { !isAudioTrack(it) }.orEmpty()
 
         val base = "instagram"
         val medias = mutableListOf<VideoMedia>()
@@ -205,11 +211,25 @@ object InstagramParser : VideoParser {
   function addImgs(){var a=[].slice.call(document.querySelectorAll('img'));for(var i=0;i<a.length;i++){var im=a[i];if((im.naturalWidth||0)>=1000){var u=im.currentSrc||im.src||'';if(u&&imgs.indexOf(u)<0)imgs.push(u);}}}
   function mp4s(){try{var r=[].slice.call(performance.getEntriesByType('resource')),o=[];for(var i=0;i<r.length;i++){var n=r[i].name||'';if(n.indexOf('.mp4')>=0){var u=n.split('&bytestart=')[0];if(o.indexOf(u)<0)o.push(u);}}}catch(e){return [];}return o;}
   function bodyText(){return (document.body&&document.body.innerText)||'';}
+  // 单文件渐进式 mp4（video_versions，type 101/102/103）：自带音轨，无需合轨，兼容性最好
+  function progressive(){
+    try{
+      var html=document.documentElement.innerHTML;
+      var blk=/"video_versions"\s*:\s*\[([\s\S]*?)\]/.exec(html);
+      if(!blk) return [];
+      var re=/"url":"([^"]+)"/g,o=[],m;
+      while((m=re.exec(blk[1]))){
+        var u=m[1].replace(/\\\//g,'/').replace(/\\u0026/g,'&').replace(/&amp;/g,'&');
+        if(u.indexOf('http')===0&&o.indexOf(u)<0) o.push(u);
+      }
+      return o;
+    }catch(e){ return []; }
+  }
   function finish(err){
     if(window.__yunxIgDone)return; addImgs();
     var vids=[],v=[].slice.call(document.querySelectorAll('video'));
     for(var i=0;i<v.length;i++){vids.push({d:v[i].duration||0,w:v[i].videoWidth||0,h:v[i].videoHeight||0});}
-    window.__yunxIgPayload=JSON.stringify({error:err||'',ogTitle:meta('og:title'),ogDesc:meta('og:description'),ogImage:meta('og:image'),imgs:imgs,mp4:mp4s(),vids:vids,url:location.href});
+    window.__yunxIgPayload=JSON.stringify({error:err||'',ogTitle:meta('og:title'),ogDesc:meta('og:description'),ogImage:meta('og:image'),imgs:imgs,mp4:mp4s(),prog:progressive(),vids:vids,url:location.href});
     window.__yunxIgDone=true;
   }
   function step(){
