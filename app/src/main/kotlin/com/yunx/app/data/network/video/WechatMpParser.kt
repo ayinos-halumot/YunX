@@ -165,16 +165,35 @@ object WechatMpParser : VideoParser {
      * 以前只取 `cdn_url`，`live_photo` 整段被丢掉 → 实况照片永远只能下到静图。
      */
     internal fun extractPictureItems(html: String): List<Pair<String, String>> {
-        val block = section(html, "picture_page_info_list", listOf("share_cover", "watermark_info")) ?: return emptyList()
-        val matches = PICTURE_ITEM_CDN.findAll(block).toList()
-        if (matches.isEmpty()) return emptyList()
-        return matches.mapIndexed { i, m ->
-            val start = m.range.last + 1
-            val end = matches.getOrNull(i + 1)?.range?.first ?: block.length
-            val seg = block.substring(start, minOf(end, start + 4_000))
+        val block = pictureBlock(html) ?: return emptyList()
+        // 每一项的真实结构（2026-11 实测）：一张图会带 2~3 个 cdn_url ——
+        //   主图 / watermark_info 里的水印版 / original_info 里的另一规格；
+        // 全局扫 cdn_url 会让张数翻倍并错配动图，所以只认项开头的主 cdn_url，并排掉后两者。
+        val starts = PICTURE_ITEM_START.findAll(block).filter { m ->
+            val back = block.substring(maxOf(0, m.range.first - 60), m.range.first)
+            !back.contains("watermark_info") && !back.contains("original_info")
+        }.toList()
+        if (starts.isEmpty()) return emptyList()
+        return starts.mapIndexed { i, m ->
+            val end = starts.getOrNull(i + 1)?.range?.first ?: block.length
+            val seg = block.substring(m.range.last + 1, minOf(end, m.range.last + 1 + 6_000))
             val motion = LIVE_PHOTO_ITEM.find(seg)?.groupValues?.getOrNull(1).orEmpty()
             decodeWechatUrl(m.groupValues[1]) to decodeWechatUrl(motion)
         }
+    }
+
+    /**
+     * 截出 picture_page_info_list 那一段（到 video_page_info 或语句结尾为止）。
+     * 不能用 section()：它的结束标记会命中每一项内部的 watermark_info，把列表从第 2 项起截掉，
+     * 表现就是「3 张图只解析出 1 张」。
+     */
+    private fun pictureBlock(html: String): String? {
+        val start = html.indexOf("picture_page_info_list")
+        if (start < 0) return null
+        val rest = html.substring(start)
+        val stops = listOf("video_page_info", "\n];").map { rest.indexOf(it) }.filter { it > 0 }
+        val end = stops.minOrNull() ?: rest.length
+        return rest.substring(0, end)
     }
 
     /** 微信 JSON 里的 `&` 会被转义成 `\x26amp;`（HTML 里的 `&amp;` 再被 JS 转义一层），要还原两次 */
@@ -315,8 +334,8 @@ object WechatMpParser : VideoParser {
     private val IMG_DATA_SRC = Regex("""data-src="(https?://[^"]+)"""")
     /** 图片消息（图集）里的图片清单：`picture_page_info_list: [ { cdn_url: 'https://…' } ]` */
     private val CDN_URL_IN_PICTURE = Regex("""cdn_url:\s*'(https?://[^']+)'""")
-    /** 图片消息里每一项的静图地址（与 CDN_URL_IN_PICTURE 同源，单独命名便于阅读） */
-    private val PICTURE_ITEM_CDN = Regex("""cdn_url:\s*'(https?://[^']+)'""")
+    /** 图片消息里每一项的**主**图地址：只在项开头出现 */
+    private val PICTURE_ITEM_START = Regex("""\{\s*cdn_url:\s*'([^']+)'""")
     /** 实况照片的动图地址：`live_photo: { vid: …, format_info: [ { url: 'https://….mp4…' } ] }` */
     private val LIVE_PHOTO_ITEM = Regex("""live_photo:\s*\{[^}]*?format_info:\s*\[\s*\{[^}]*?url:\s*'([^']+)'""")
     /** 封面：长条 2.35:1 */
