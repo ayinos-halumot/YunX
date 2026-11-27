@@ -2759,6 +2759,11 @@ GitHub 上历史分支保留不动。同时回退下载页三 Tab（恢复「单
 **回退**：`buildDownloadEntries` 恢复旧实现、删 `sameLinkGroupKey` 与 TabRow/`dl_tab_*`；
 `CollapsibleSectionHeader` 与两个 expanded 状态删掉、标题字符串还原。
 
+**2026-11-27 X 下载修复（1.5.4-dev4）**：三条实测链接暴露的问题与修法——
+① 聚合接口变体字段是 `type`/`src`（不是 `content_type`/`url`），旧代码全取不到 → 视频被跳过；
+② 变体无 `bit_rate`，旧逻辑按码率取最大会拿到最低档 → 改为按 URL 里 `<宽>x<高>` 面积取最大，面积相同再看码率；
+③ 部分帖子返回 `{"__typename":"TweetTombstone"}`（敏感/地区限制），x.com 网页是 JS 渲染无直链 → 主通道拿不到媒体时改走 `api.fxtwitter.com` 兜底；
+④ 混合媒体（同帖图片+视频）保证都收；⑤ 无 mp4 时退回 m3u8（下载器支持 HLS 分片合并）。
 **回退**：删 `ParseQueueItem/parseQueue/queueDetailId/queueNotice` 与队列函数、`ParseQueueSection.kt`、
 `VideoResultSection` 的两个新参数、输入页按钮改回单个、`rs_queue_*` 字符串。
 

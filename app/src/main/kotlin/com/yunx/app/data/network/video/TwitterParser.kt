@@ -28,17 +28,19 @@ import java.util.Locale
 /**
  * X（Twitter）帖子解析：`/<user>/status/<id>`、`/i/status/<id>`、`/i/web/status/<id>`。
  *
- * **免登录**，走 X 的公开聚合接口 `cdn.syndication.twimg.com/tweet-result`（帖子的嵌入卡片数据源）：
- * - 它不需要 Cookie、也不需要 API Key，只要一个由帖子 id 推出的 `token`（见 [embedToken]）；
+ * **免登录**，主通道是 X 的公开聚合接口 `cdn.syndication.twimg.com/tweet-result`：
+ * - 不需要 Cookie/API Key，只要由帖子 id 推出的 `token`（见 [embedToken]）；
  * - 返回 `photos[]`（图片）与 `mediaDetails[]`（photo / video / animated_gif，含 `video_info.variants`）。
  *
- * 内容口径（与用户确认一致）：
- * - **图片取原图**：`media_url_https` 追加 `?name=orig`；
- * - **动图 / 视频取最高画质**：`variants` 里筛 `video/mp4`，按 `bit_rate` 取最大（HLS/m3u8 不单独下）；
- * - 帖子内重复出现同一 URL 由上层统一去重（见 `VideoParseRepository`）。
+ * **兜底通道**：聚合接口对部分帖子会返回 `{"__typename":"TweetTombstone"}`（敏感内容/地区限制），
+ * 这类帖子 x.com 网页是 JS 渲染、HTML 里没有直链，因此在主通道拿不到媒体时改走 `api.fxtwitter.com`
+ * （开源第三方镜像，仅在本机请求、不经过 YunX 服务器）。两条通道都失败才报错。
  *
- * 已知边界：仅公开帖子；受保护/已删除/需要登录（敏感内容）的帖子会返回 404/403 —— 如实报错。
- * 本机（中国大陆网络）实测 `cdn.syndication.twimg.com` 不可直连，App 侧需用户自备可用网络。
+ * 内容口径：
+ * - **图片取原图**：`media_url_https` 追加 `?name=orig`；
+ * - **视频/动图取最高画质**：变体里优先 `video/mp4`，按 URL 里的 `<宽>x<高>` 取面积最大（同面积看 bit_rate）；
+ *   没有 mp4 时退回 m3u8（下载器已支持 HLS 分片合并）；
+ * - 同一帖子的图片与视频**都收**（混合媒体），重复 URL 在上层统一去重。
  */
 object TwitterParser : VideoParser {
 
@@ -50,9 +52,26 @@ object TwitterParser : VideoParser {
         "Accept" to "application/json, text/plain, */*"
     )
 
+    private val mediaHeaders = mapOf(
+        "User-Agent" to VideoHttp.UA_CHROME,
+        "Referer" to "https://x.com/"
+    )
+
     override suspend fun parse(link: DetectedVideoLink, cookie: String): VideoParseResult {
         val id = link.id
-        // token 只是这个嵌入接口的缓存键：不同版本校验松紧不一，依次尝试几种写法更稳
+        val primary = runCatching { parseSyndication(id, link.url) }.getOrNull()
+        if (primary != null && primary.medias.isNotEmpty()) return primary
+        // 主通道「有帖子但没媒体」或「Tombstone」都交给兜底通道再试一次
+        val fallback = runCatching { parseFallback(id, link.url) }.getOrNull()
+        if (fallback != null && fallback.medias.isNotEmpty()) return fallback
+        throw VideoParseException(
+            VideoParseErrorKind.UNSUPPORTED,
+            AppStrings.get(R.string.er_x_no_media)
+        )
+    }
+
+    /** 主通道：X 嵌入接口。帖子不可见（Tombstone）/无媒体时返回 null，交给兜底。 */
+    private suspend fun parseSyndication(id: String, linkUrl: String): VideoParseResult? {
         val tokens = listOf(embedToken(id), "", "0").distinct()
         var response = VideoHttp.request(
             "https://cdn.syndication.twimg.com/tweet-result?id=$id&lang=en&token=${tokens.first()}",
@@ -66,22 +85,12 @@ object TwitterParser : VideoParser {
             )
         }
         when (response.status) {
-            404, 410 -> throw VideoParseException(
-                VideoParseErrorKind.NOT_FOUND,
-                AppStrings.get(R.string.er_x_not_found)
-            )
-            401, 403, 429 -> throw VideoParseException(
-                VideoParseErrorKind.BLOCKED,
-                AppStrings.get(R.string.er_x_blocked)
-            )
+            404, 410 -> return null
+            401, 403, 429 -> return null
         }
-        val json = runCatching { JSONObject(response.body) }.getOrNull() ?: throw VideoParseException(
-            VideoParseErrorKind.UNKNOWN,
-            AppStrings.get(R.string.er_x_no_data)
-        )
-        if (json.optString("__typename").isBlank() && json.optString("id").isBlank()) {
-            throw VideoParseException(VideoParseErrorKind.NOT_FOUND, AppStrings.get(R.string.er_x_not_found))
-        }
+        val json = runCatching { JSONObject(response.body) }.getOrNull() ?: return null
+        if (json.optString("__typename") == "TweetTombstone") return null
+        if (json.optString("id").isBlank() && json.optString("text").isBlank()) return null
 
         val user = json.optJSONObject("user")
         val author = user?.optString("name").orEmpty()
@@ -90,29 +99,31 @@ object TwitterParser : VideoParser {
         val text = json.optString("text").orEmpty()
         val createdAt = json.optString("created_at").orEmpty()
 
-        val mediaHeaders = mapOf("User-Agent" to VideoHttp.UA_CHROME, "Referer" to "https://x.com/")
         val medias = mutableListOf<VideoMedia>()
+        val seen = mutableSetOf<String>()
         var cover = ""
 
-        // ① 图片：photos[] 里是原图地址（追加 ?name=orig 拿最大尺寸）
+        // ① 图片（photos[] 是原图基址）
         val photos = json.optJSONArray("photos")
         if (photos != null) {
+            var index = 0
             for (i in 0 until photos.length()) {
                 val raw = photos.optJSONObject(i)?.optString("url").orEmpty()
                 val original = originalPhoto(raw)
-                if (original.isBlank()) continue
+                if (original.isBlank() || !seen.add(original)) continue
+                index += 1
                 if (cover.isBlank()) cover = original
                 medias += VideoMedia(
                     url = original,
                     kind = VideoMediaKind.IMAGE,
-                    fileName = "x_${i + 1}.jpg",
+                    fileName = "x_${index}.jpg",
                     headers = mediaHeaders,
                     quality = AppStrings.get(R.string.em_quality_original)
                 )
             }
         }
 
-        // ② 视频 / 动图：mediaDetails[]，variants 里筛 mp4 取最大码率
+        // ② 视频 / 动图
         var videoIndex = 0
         val details = json.optJSONArray("mediaDetails")
         if (details != null) {
@@ -124,11 +135,12 @@ object TwitterParser : VideoParser {
                 if (type != "video" && type != "animated_gif") continue
                 val best = bestVideoVariant(item.optJSONObject("video_info")?.optJSONArray("variants"))
                     ?: continue
+                if (!seen.add(best.first)) continue
                 videoIndex += 1
                 medias += VideoMedia(
                     url = best.first,
                     kind = VideoMediaKind.VIDEO,
-                    fileName = "x_video_$videoIndex.mp4",
+                    fileName = "x_video_${videoIndex}.mp4",
                     headers = mediaHeaders,
                     quality = if (type == "animated_gif") {
                         AppStrings.get(R.string.em_quality_motion)
@@ -137,13 +149,6 @@ object TwitterParser : VideoParser {
                     }
                 )
             }
-        }
-
-        if (medias.isEmpty()) {
-            throw VideoParseException(
-                VideoParseErrorKind.UNSUPPORTED,
-                AppStrings.get(R.string.er_x_no_media)
-            )
         }
 
         return VideoParseResult(
@@ -155,7 +160,81 @@ object TwitterParser : VideoParser {
             cover = cover,
             text = text,
             timestampSeconds = parseCreatedAt(createdAt),
-            url = link.url,
+            url = linkUrl,
+            medias = medias
+        )
+    }
+
+    /**
+     * 兜底通道：`api.fxtwitter.com`（开源镜像，返回 `tweet.media.all[]`）。
+     *
+     * 只在主通道拿不到媒体时调用；字段缺失一律跳过，不抛异常。
+     */
+    private suspend fun parseFallback(id: String, linkUrl: String): VideoParseResult? {
+        val response = VideoHttp.request(
+            "https://api.fxtwitter.com/i/status/$id",
+            headers = mapOf("User-Agent" to VideoHttp.UA_CHROME, "Accept" to "application/json")
+        )
+        if (response.status !in 200..299) return null
+        val root = runCatching { JSONObject(response.body) }.getOrNull() ?: return null
+        val tweet = root.optJSONObject("tweet") ?: return null
+        val authorObj = tweet.optJSONObject("author")
+
+        val medias = mutableListOf<VideoMedia>()
+        val seen = mutableSetOf<String>()
+        var cover = ""
+        var imageIndex = 0
+        var videoIndex = 0
+        val all = tweet.optJSONObject("media")?.optJSONArray("all")
+        if (all != null) {
+            for (i in 0 until all.length()) {
+                val item = all.optJSONObject(i) ?: continue
+                when (item.optString("type")) {
+                    "photo" -> {
+                        val url = originalPhoto(item.optString("url").orEmpty())
+                        if (url.isBlank() || !seen.add(url)) continue
+                        imageIndex += 1
+                        if (cover.isBlank()) cover = url
+                        medias += VideoMedia(
+                            url = url,
+                            kind = VideoMediaKind.IMAGE,
+                            fileName = "x_${imageIndex}.jpg",
+                            headers = mediaHeaders,
+                            quality = AppStrings.get(R.string.em_quality_original)
+                        )
+                    }
+                    "video", "gif" -> {
+                        val best = bestVideoVariant(item.optJSONArray("variants"))
+                            ?: item.optString("url").takeIf { it.isNotBlank() }?.let { it to "" }
+                            ?: continue
+                        if (!seen.add(best.first)) continue
+                        videoIndex += 1
+                        medias += VideoMedia(
+                            url = best.first,
+                            kind = VideoMediaKind.VIDEO,
+                            fileName = "x_video_${videoIndex}.mp4",
+                            headers = mediaHeaders,
+                            quality = if (item.optString("type") == "gif") {
+                                AppStrings.get(R.string.em_quality_motion)
+                            } else {
+                                best.second
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        return VideoParseResult(
+            platform = platform,
+            title = tweet.optString("text").lineSequence().firstOrNull().orEmpty().ifBlank { "x_$id" },
+            author = authorObj?.optString("name").orEmpty(),
+            authorId = authorObj?.optString("screen_name").orEmpty(),
+            avatar = authorObj?.optString("avatar_url").orEmpty(),
+            cover = cover,
+            text = tweet.optString("text").orEmpty(),
+            timestampSeconds = tweet.optLong("created_timestamp", 0L),
+            url = linkUrl,
             medias = medias
         )
     }
@@ -214,25 +293,59 @@ object TwitterParser : VideoParser {
     }
 
     /**
-     * 从 `video_info.variants` 里选最高码率的 `video/mp4`。
-     * @return `(url, 质量标签)`；没有 mp4 变体时返回 null
+     * 从变体里选画质最高的那一路。
+     *
+     * - 字段兼容两种写法：`type|content_type`、`src|url`（聚合接口用前者，其它镜像用后者）；
+     * - 优先 `video/mp4`：按 URL 里的 `/<宽>x<高>/` 算面积取最大，面积相同再看 `bit_rate`；
+     * - 没有 mp4 时退回 HLS（m3u8），质量标签用 [HLS_LABEL]。
+     *
+     * @return `(url, 质量标签)`；完全没有可用变体时返回 null
      */
     internal fun bestVideoVariant(variants: JSONArray?): Pair<String, String>? {
         if (variants == null) return null
-        var best: Pair<String, String>? = null
-        var bestRate = -1L
+        val list = ArrayList<VariantCandidate>(variants.length())
         for (i in 0 until variants.length()) {
             val v = variants.optJSONObject(i) ?: continue
-            val type = v.optString("content_type")
-            val url = v.optString("url")
-            if (type != "video/mp4" || url.isBlank()) continue
-            val rate = v.optLong("bit_rate", 0L)
-            if (rate > bestRate) {
-                bestRate = rate
-                best = url to bitrateLabel(rate)
+            list += VariantCandidate(
+                type = v.optString("type").ifBlank { v.optString("content_type") },
+                src = v.optString("src").ifBlank { v.optString("url") },
+                bitRate = v.optLong("bit_rate", 0L)
+            )
+        }
+        return chooseVariant(list)
+    }
+
+    /** 一条播放地址候选（把 JSON 解析与选优拆开，方便纯函数单测） */
+    internal data class VariantCandidate(val type: String, val src: String, val bitRate: Long = 0L)
+
+    /**
+     * 纯选优逻辑：优先 mp4（按 URL 里 `/<宽>x<高>/` 面积最大，面积相同看码率），
+     * 没有 mp4 时退回 m3u8（标签 [HLS_LABEL]）。
+     */
+    internal fun chooseVariant(candidates: List<VariantCandidate>): Pair<String, String>? {
+        var bestMp4: Pair<String, String>? = null
+        var bestArea = -1L
+        var bestRate = -1L
+        var hls = ""
+        candidates.forEach { v ->
+            if (v.src.isBlank()) return@forEach
+            if (v.type.contains("mpegurl", true) || v.src.contains(".m3u8", true)) {
+                if (hls.isBlank()) hls = v.src
+                return@forEach
+            }
+            if (!v.type.contains("mp4", true) && !v.src.contains(".mp4", true)) return@forEach
+            val res = RESOLUTION.find(v.src)
+            val area = res?.let { it.groupValues[1].toLong() * it.groupValues[2].toLong() } ?: 0L
+            val better = area > bestArea || (area == bestArea && v.bitRate > bestRate)
+            if (better) {
+                bestArea = area
+                bestRate = v.bitRate
+                val label = if (res != null) "${res.groupValues[1]}×${res.groupValues[2]}" else bitrateLabel(v.bitRate)
+                bestMp4 = v.src to label
             }
         }
-        return best
+        if (bestMp4 != null) return bestMp4
+        return if (hls.isNotBlank()) hls to HLS_LABEL else null
     }
 
     /** 码率 → 用户可读的质量标签（Mbps，一位小数） */
@@ -245,4 +358,9 @@ object TwitterParser : VideoParser {
         val fmt = SimpleDateFormat("EEE MMM dd HH:mm:ss Z yyyy", Locale.US)
         return runCatching { fmt.parse(value)?.time?.div(1000L) }.getOrNull() ?: 0L
     }
+
+    /** 从 `.../vid/avc1/720x1280/xxx.mp4` 里抠分辨率 */
+    private val RESOLUTION = Regex("/(\\d{2,5})x(\\d{2,5})/")
+
+    private const val HLS_LABEL = "HLS"
 }

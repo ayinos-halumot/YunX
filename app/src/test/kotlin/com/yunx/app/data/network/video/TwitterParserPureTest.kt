@@ -49,6 +49,28 @@ class TwitterParserPureTest {
     }
 
     @Test
+    fun `variants 按分辨率取最大`() {
+        val best = TwitterParser.chooseVariant(
+            listOf(
+                TwitterParser.VariantCandidate("application/x-mpegURL", "https://video.twimg.com/x/pl/a.m3u8"),
+                TwitterParser.VariantCandidate("video/mp4", "https://video.twimg.com/x/vid/avc1/320x568/low.mp4"),
+                TwitterParser.VariantCandidate("video/mp4", "https://video.twimg.com/x/vid/avc1/2560x1440/high.mp4")
+            )
+        )
+        assertEquals("https://video.twimg.com/x/vid/avc1/2560x1440/high.mp4", best?.first)
+        assertEquals("2560×1440", best?.second)
+    }
+
+    @Test
+    fun `没有 mp4 时退回 HLS`() {
+        val best = TwitterParser.chooseVariant(
+            listOf(TwitterParser.VariantCandidate("application/x-mpegURL", "https://video.twimg.com/z/pl/x.m3u8"))
+        )
+        assertEquals("https://video.twimg.com/z/pl/x.m3u8", best?.first)
+        assertEquals("HLS", best?.second)
+    }
+
+    @Test
     fun `码率标签`() {
         assertEquals("2.2 Mbps", TwitterParser.bitrateLabel(2176000L))
         assertEquals("", TwitterParser.bitrateLabel(0L))
