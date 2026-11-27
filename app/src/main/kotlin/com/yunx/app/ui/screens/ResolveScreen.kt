@@ -59,7 +59,6 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -172,30 +171,6 @@ fun ResolveScreen(
     val context = LocalContext.current
     // 主页快捷方式：已「添加到主页」的收藏，在输入页下方以网格展示
     val homeBookmarks by bookmarkViewModel.homeBookmarks.collectAsState()
-
-    // 解析队列：点某条 → 进入「选择页」勾选要下载的内容；返回后由页面一的下载按钮统一下载
-    val queueDetail = viewModel.queueDetailId?.let { id -> viewModel.parseQueue.firstOrNull { it.id == id } }
-    if (queueDetail?.result != null) {
-        QueueItemSelectionSection(
-            result = queueDetail.result,
-            initialSelectedUrls = queueDetail.selectedUrls,
-            onConfirm = { urls ->
-                viewModel.updateQueueSelection(queueDetail.id, urls)
-                viewModel.closeQueueDetail()
-            },
-            onBack = { viewModel.closeQueueDetail() }
-        )
-        return
-    }
-
-    // 队列提示（链接无法识别 / 队列已满）弹一次
-    val queueNotice = viewModel.queueNotice.value
-    androidx.compose.runtime.LaunchedEffect(queueNotice) {
-        if (queueNotice.isNotBlank()) {
-            SnackbarController.show(queueNotice)
-            viewModel.queueNotice.value = ""
-        }
-    }
 
     // 详情页文件列表滚动状态（提升到 AnimatedContent 外层：进入文件夹/返回时列表重建，
     // 若放在 ShareDetailScreen 内会随目录切换丢失，导致返回后列表回到顶部）
@@ -420,15 +395,6 @@ fun ResolveScreen(
                     onDownloadSelected = { viewModel.downloadVideoMedias(it) },
                     onBack = { viewModel.backToInput() }
                 )
-                is ResolveUiState.VideoBatch -> VideoBatchSection(
-                    items = s.items,
-                    skippedDuplicates = s.skippedDuplicates,
-                    truncated = s.truncated,
-                    onToggle = { viewModel.toggleBatchSelected(it) },
-                    onToggleAll = { viewModel.setAllBatchSelected(it) },
-                    onDownloadSelected = { viewModel.downloadBatchSelected() },
-                    onBack = { viewModel.backToInput() }
-                )
                 else -> ResolveInputContent(
                     viewModel = viewModel,
                     scrollBehavior = scrollBehavior,
@@ -629,37 +595,16 @@ private fun ResolveInputContent(
             shape = MaterialTheme.shapes.large
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Button(
+            onClick = {
+                // 统一入口：先试视频、再试 GitHub / 网盘（分流在 ViewModel 内完成）
+                viewModel.startVideoResolve(link, pwd)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            enabled = link.isNotBlank() && !isLoading
         ) {
-            OutlinedButton(
-                onClick = {
-                    if (viewModel.addQueueItem(link)) {
-                        onLinkChange("")
-                        onPwdChange("")
-                    }
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                enabled = link.isNotBlank() && !isLoading
-            ) {
-                Text(stringResource(R.string.rs_queue_add))
-            }
-            Button(
-                onClick = {
-                    if (viewModel.parseQueue.isNotEmpty()) {
-                        viewModel.startQueueParse()
-                    } else {
-                        viewModel.startVideoResolve(link, pwd)
-                    }
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                enabled = (link.isNotBlank() || viewModel.parseQueue.any { it.result == null }) && !isLoading
-            ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
@@ -669,31 +614,6 @@ private fun ResolveInputContent(
                 Text(stringResource(R.string.rs_parsing))
             } else {
                 Text(stringResource(R.string.rs_start_resolve))
-            }
-            }
-        }
-
-        if (viewModel.parseQueue.isNotEmpty()) {
-            ParseQueueList(
-                items = viewModel.parseQueue,
-                onOpen = { viewModel.openQueueItem(it) },
-                onRemove = { viewModel.removeQueueItem(it) }
-            )
-            val chosenCount = viewModel.parseQueue.sumOf { it.chosenMedias().size }
-            Text(
-                text = stringResource(R.string.rs_queue_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp, start = 4.dp)
-            )
-            Button(
-                onClick = { viewModel.downloadQueueSelected() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                enabled = chosenCount > 0 && !isLoading
-            ) {
-                Text(stringResource(R.string.rs_queue_download_selected, chosenCount))
             }
         }
 

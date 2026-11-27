@@ -133,10 +133,6 @@ fun VideoResultSection(
     onDownloadAll: () -> Unit,
     onDownloadSelected: (List<VideoMedia>) -> Unit,
     onBack: () -> Unit,
-    /** 进入时预先选中的媒体 url（从解析队列回来时恢复上次选择） */
-    initialSelectedUrls: Set<String>? = null,
-    /** 选择变化回调：把选择存回解析队列（决定队列行显示 √ / 半选 / 空） */
-    onSelectionChanged: ((Set<String>) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // 空直链的图片既预览不了也下载不了：直接不算数，否则格子里是个灰块、还会把下标算歪
@@ -153,16 +149,7 @@ fun VideoResultSection(
 
     // 图集多选（长按缩略图进入）。用 **url 当键**而不是下标：切页、以及同 url 的重复项都不会串选
     var selectionMode by remember(result) { mutableStateOf(false) }
-    var selectedUrls by remember(result) {
-        mutableStateOf(
-            initialSelectedUrls
-                ?: result.medias.filter { it.url.isNotBlank() }.map { it.url }.toSet()
-        )
-    }
-    // 选择变化时回写队列（首次进入也会回写一次「全选」，与队列行的 √ 一致）
-    androidx.compose.runtime.LaunchedEffect(selectedUrls) {
-        onSelectionChanged?.invoke(selectedUrls)
-    }
+    var selectedUrls by remember(result) { mutableStateOf(emptySet<String>()) }
     val exitSelection: () -> Unit = {
         selectionMode = false
         selectedUrls = emptySet()

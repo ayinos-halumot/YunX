@@ -2752,6 +2752,10 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 4. **同链接内容折叠**：`buildDownloadEntries` 在文件夹组之外，把**没建文件夹**的任务按
    `平台 + 去掉末尾 (_video)?_数字 的标题` 归组，组内 ≥2 条即折叠（组名用该标题）。
 
+**2026-11-27 用户调整（1.5.4-dev3）**：按用户要求回退「多链接下载 / 解析队列」——解析页恢复单链接解析；
+VideoBatchSection.kt、ParseQueueSection.kt、QueueItemSelection.kt 及 VideoBatch*/ParseQueueItem/队列函数全部移除，
+GitHub 上历史分支保留不动。同时回退下载页三 Tab（恢复「单文件 + 文件夹组」一栏到底），
+但保留同链接内容折叠分组（sameLinkGroupKey）。其余（X 平台、相册修复、媒体解析标题、账号分组折叠）不变。
 **回退**：`buildDownloadEntries` 恢复旧实现、删 `sameLinkGroupKey` 与 TabRow/`dl_tab_*`；
 `CollapsibleSectionHeader` 与两个 expanded 状态删掉、标题字符串还原。
 

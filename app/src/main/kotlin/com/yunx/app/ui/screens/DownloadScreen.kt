@@ -263,31 +263,8 @@ fun DownloadScreen(
                     onResumeAll = { viewModel.resumeAll() },
                     onDeleteAll = { showDeleteAllConfirm = true }
                 )
-                // 三个分栏：全部 / 下载中（未完成）/ 已完成
-                var statusFilter by rememberSaveable { mutableIntStateOf(0) }
-                val completedCount = tasks.count { it.status == DownloadTaskEntity.STATUS_COMPLETED }
-                val visibleTasks = remember(tasks, statusFilter) {
-                    when (statusFilter) {
-                        1 -> tasks.filter { it.status != DownloadTaskEntity.STATUS_COMPLETED }
-                        2 -> tasks.filter { it.status == DownloadTaskEntity.STATUS_COMPLETED }
-                        else -> tasks
-                    }
-                }
-                TabRow(selectedTabIndex = statusFilter) {
-                    listOf(
-                        stringResource(R.string.dl_tab_all, tasks.size),
-                        stringResource(R.string.dl_tab_in_progress, tasks.size - completedCount),
-                        stringResource(R.string.dl_tab_completed, completedCount)
-                    ).forEachIndexed { index, title ->
-                        Tab(
-                            selected = statusFilter == index,
-                            onClick = { statusFilter = index },
-                            text = { Text(title, maxLines = 1) }
-                        )
-                    }
-                }
                 // 单文件任务与「文件夹组」混排，统一按创建时间倒序（Composable 上下文里算，LazyColumn 的 item 块不是 @Composable）。
-                val entries = remember(visibleTasks) { buildDownloadEntries(visibleTasks) }
+                val entries = remember(tasks) { buildDownloadEntries(tasks) }
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
