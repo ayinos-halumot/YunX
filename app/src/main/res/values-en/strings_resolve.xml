@@ -247,4 +247,14 @@
     <string name="rs_category_image">Images</string>
     <string name="rs_category_archive">Archives</string>
     <string name="rs_category_other">Other</string>
+
+    <string name="rs_batch_title">Batch parse</string>
+    <string name="rs_batch_summary">%1$d links · %2$d selected</string>
+    <string name="rs_batch_skipped">Skipped %1$d duplicate link(s)</string>
+    <string name="rs_batch_truncated">Over the 20-link limit; %1$d truncated</string>
+    <string name="rs_batch_select_all">Select all</string>
+    <string name="rs_batch_download_selected">Download selected (%1$d)</string>
+    <string name="rs_batch_nothing_selected">Select at least one item first</string>
+    <string name="rs_batch_item_media">%1$d images · %2$d videos</string>
+    <string name="rs_batch_parsing">Parsing…</string>
 </resources>
