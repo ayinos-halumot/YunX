@@ -248,4 +248,14 @@
     <string name="rs_category_image">图片</string>
     <string name="rs_category_archive">压缩包</string>
     <string name="rs_category_other">其他</string>
+
+    <string name="rs_batch_title">批量解析</string>
+    <string name="rs_batch_summary">共 %1$d 条链接 · 已选 %2$d 条</string>
+    <string name="rs_batch_skipped">已跳过 %1$d 条重复链接</string>
+    <string name="rs_batch_truncated">超过单次上限 20 条，已截断 %1$d 条</string>
+    <string name="rs_batch_select_all">全选</string>
+    <string name="rs_batch_download_selected">下载所选（%1$d）</string>
+    <string name="rs_batch_nothing_selected">请先勾选要下载的条目</string>
+    <string name="rs_batch_item_media">%1$d 张图 · %2$d 个视频</string>
+    <string name="rs_batch_parsing">解析中…</string>
 </resources>
