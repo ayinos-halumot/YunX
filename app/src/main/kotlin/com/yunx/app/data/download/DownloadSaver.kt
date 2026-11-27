@@ -238,21 +238,32 @@ object DownloadSaver {
         subDir: String
     ): DownloadDestination? {
         val resolver = context.contentResolver
-        val relativePath = if (subDir.isBlank()) {
-            Environment.DIRECTORY_DOWNLOADS
-        } else {
-            "${Environment.DIRECTORY_DOWNLOADS}/$subDir"
+        // ★ 图片/视频/音频要写进各自的媒体集合：只塞进 Downloads 时，系统相册根本不索引它们，
+        //   「在相册里打开」就会一进去就退回（用户报的闪退就是这条链路的末端表现）。
+        val mime = mimeOf(fileName)
+        val collection = when {
+            mime.startsWith("image/") -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            mime.startsWith("video/") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            mime.startsWith("audio/") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI
         }
+        val baseDir = when {
+            mime.startsWith("image/") -> Environment.DIRECTORY_PICTURES
+            mime.startsWith("video/") -> Environment.DIRECTORY_MOVIES
+            mime.startsWith("audio/") -> Environment.DIRECTORY_MUSIC
+            else -> Environment.DIRECTORY_DOWNLOADS
+        }
+        val relativePath = if (subDir.isBlank()) baseDir else "$baseDir/$subDir"
         for (candidate in nameCandidates(fileName)) {
             try {
-                if (mediaStoreNameExists(resolver, candidate, relativePath)) continue
+                if (mediaStoreNameExists(resolver, collection, candidate, relativePath)) continue
                 val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, candidate)
-                    put(MediaStore.Downloads.MIME_TYPE, mimeOf(candidate))
-                    put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
-                    put(MediaStore.Downloads.IS_PENDING, 1)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, candidate)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeOf(candidate))
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: continue
+                val uri = resolver.insert(collection, values) ?: continue
                 return DownloadDestination(
                     path = uri.toString(),
                     openStream = { resolver.openOutputStream(uri) },
@@ -313,13 +324,14 @@ object DownloadSaver {
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun mediaStoreNameExists(
         resolver: ContentResolver,
+        collection: Uri,
         fileName: String,
         relativePath: String
     ): Boolean = runCatching {
-            val selection = "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?"
-            val projection = arrayOf(MediaStore.Downloads._ID)
+            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND ${MediaStore.MediaColumns.RELATIVE_PATH}=?"
+            val projection = arrayOf(MediaStore.MediaColumns._ID)
             resolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                collection,
                 projection,
                 selection,
                 arrayOf(fileName, relativePath),

@@ -2699,6 +2699,27 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **UI**：`ui/screens/VideoBatchSection.kt`（返回、条数/已选统计、跳过/截断提示、全选、卡片列表、底部下载按钮）。
 
+---
+
+### 3.55 相册打开闪退回下载页（1.5.2）
+
+**根因（两处叠加）**
+1. 图片/视频/音频以前统统插进 `MediaStore.Downloads`，**系统相册不索引 Downloads 集合** —— 从相册打开这类 URI 会立即退出；
+2. `DownloadScreen.openSavedFile` 固定用 `setDataAndType(uri, "*/*")` + `createChooser`，图库拿到 `*/*` 的 content:// 会自己关掉。
+
+**修法**
+- `DownloadSaver.mediaStoreDestination`：按 MIME 选集合与根目录
+  图片→`MediaStore.Images` + `Pictures/`、视频→`Video` + `Movies/`、音频→`Audio` + `Music/`，其余仍 `Downloads`；
+  同名判断改用 `MediaColumns` 并跟随所选集合（不再固定查 Downloads）。
+- `openSavedFile(context, savePath, fileName)`：按扩展名取真实 MIME（`DownloadSaver.mimeOf`），
+  先**直连** `ACTION_VIEW`（相册/播放器直接接管），无处理者才退回选择器；两个调用点都补传 `task.fileName`。
+
+**注意**：默认保存位置随之变化（图片在 Pictures、视频在 Movies），文件管理器「下载」里不再有它们；
+自定义 SAF 目录不受影响。
+
+**回退**：`mediaStoreDestination` 恢复固定 `MediaStore.Downloads` + `DIRECTORY_DOWNLOADS`、
+`mediaStoreNameExists` 恢复两参数；`openSavedFile` 恢复 `*/*` + chooser 版本并去掉 fileName 参数。
+
 **回退**：删 `VideoBatchSection.kt`、`VideoBatch/VideoBatchItem`、VM 的批量函数与 `startVideoResolve` 里的分流、
 `VideoLinkParser.parseAll/countDetected`、ResolveScreen 的 `VideoBatch` 分支、5 语言的 `rs_batch_*` 字符串。
 

@@ -865,7 +865,7 @@ private fun DownloadSubTaskRow(
                         )
                     }
                     DownloadTaskEntity.STATUS_COMPLETED -> IconButton(
-                        onClick = { openSavedFile(context, task.savePath) },
+                        onClick = { openSavedFile(context, task.savePath, task.fileName) },
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
@@ -1059,7 +1059,7 @@ private fun DownloadTaskCard(
                             }
                         }
                         IconButton(onClick = {
-                            openSavedFile(context, task.savePath)
+                            openSavedFile(context, task.savePath, task.fileName)
                         }) {
                             Icon(Icons.Outlined.OpenInNew, contentDescription = stringResource(R.string.dl_open), tint = MaterialTheme.colorScheme.primary)
                         }
@@ -1313,7 +1313,11 @@ internal fun formatRemain(millis: Long): String {
     }
 }
 
-private fun openSavedFile(context: android.content.Context, savePath: String) {
+private fun openSavedFile(
+    context: android.content.Context,
+    savePath: String,
+    fileName: String = ""
+) {
     if (savePath.isBlank()) return
     val uri = if (savePath.startsWith("content://")) {
         Uri.parse(savePath)
@@ -1321,10 +1325,19 @@ private fun openSavedFile(context: android.content.Context, savePath: String) {
         // Android 7.0+ 禁止暴露 file:// URI，必须经 FileProvider 转 content://
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", File(savePath))
     }
+    // ★ 必须按真实 MIME 打开：以前固定 "*/*" + 选择器，图库收到 `*/*` 的 content:// 会自己立即关闭，
+    //   表现就是「相册一闪又退回下载页」。图片/视频/音频给精确类型后可直接由相册/播放器接管。
+    val guessed = com.yunx.app.data.download.DownloadSaver.mimeOf(
+        fileName.ifBlank { uri.lastPathSegment.orEmpty() }
+    )
+    val mime = guessed.takeIf { it != "application/octet-stream" } ?: "*/*"
     val intent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, "*/*")
+        setDataAndType(uri, mime)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
+    // 先直连（相册/播放器等默认处理者），没有可用处理者再退回选择器
+    val direct = runCatching { context.startActivity(intent); true }.getOrElse { false }
+    if (direct) return
     runCatching {
         context.startActivity(Intent.createChooser(intent, AppStrings.get(R.string.dl_chooser_open_file)))
     }.onFailure {
