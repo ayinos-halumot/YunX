@@ -205,7 +205,6 @@ object TwitterParser : VideoParser {
     }
 
     private const val BASE36_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
-    }
 
     /** 图片取原图：`.../media/xxx.jpg` → `.../media/xxx.jpg?name=orig`（已有参数则替换 name） */
     internal fun originalPhoto(url: String): String {
