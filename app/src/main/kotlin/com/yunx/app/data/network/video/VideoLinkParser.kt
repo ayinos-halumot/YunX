@@ -204,6 +204,26 @@ object VideoLinkParser {
      * ★ 只在**链接**上做匹配（不看链接外的文案）：抖音/快手的分享文案里常带一堆数字，
      *   拿整段文本匹配必然误判。
      */
+    /**
+     * 从任意文本里找出**全部**视频链接（一行一条、空格分隔、或混在文案里都行）。
+     * 结果按 平台+资源ID 去重、保持原顺序；重复条数由调用方用 [countDuplicates] 统计。
+     */
+    fun parseAll(text: String): List<DetectedVideoLink> {
+        val seen = HashSet<String>()
+        val out = ArrayList<DetectedVideoLink>()
+        for (token in text.split(Regex("[\\s，,、;；]+"))) {
+            if (token.isBlank()) continue
+            val link = parse(token) ?: continue
+            val key = link.platform.name + ":" + link.id.ifBlank { link.url }
+            if (seen.add(key)) out += link
+        }
+        return out
+    }
+
+    /** 文本里能识别出的链接条数（含重复），用于算「跳过 N 条重复」 */
+    fun countDetected(text: String): Int =
+        text.split(Regex("[\\s，,、;；]+")).count { it.isNotBlank() && parse(it) != null }
+
     fun parse(text: String): DetectedVideoLink? {
         val url = urlRegex.find(text.trim())?.value?.trimEnd(*TRAILING.toCharArray()) ?: return null
         for (rule in rules) {
