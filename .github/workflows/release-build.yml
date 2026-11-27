@@ -65,3 +65,25 @@ jobs:
           name: yunx-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          # 产物只保留 3 天：即使没人手动清理也不会无限堆积（公开仓库产物占存储额度）
+          retention-days: 3
+
+      # 只留最近 10 个产物，其余删除（每次构建都会跑，即使打包失败也跑）
+      - name: 清理旧产物（保留最近 10 个）
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="${{ github.repository }}"
+          keep=10
+          ids=$(gh api --paginate "repos/$repo/actions/artifacts?per_page=100" \
+                  -q '.artifacts[] | "\(.id) \(.created_at)"' | sort -k2 -r | tail -n +$((keep+1)) | awk '{print $1}')
+          if [ -z "$ids" ]; then
+            echo "产物数量未超过 $keep，无需清理"
+            exit 0
+          fi
+          for id in $ids; do
+            echo "删除 artifact $id"
+            gh api -X DELETE "repos/$repo/actions/artifacts/$id" >/dev/null || echo "删除 $id 失败（忽略）"
+          done
+          echo "清理完成"
