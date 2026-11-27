@@ -222,4 +222,11 @@
     <string name="em_log_logcat_unavailable">（讀取日誌失敗：本機 logcat 無法使用）\n</string>
     <string name="em_log_no_output">（無輸出）\n</string>
     <string name="em_log_share_title">分享日誌</string>
+
+    <string name="er_x_not_found">貼文不存在、已刪除或受保護</string>
+    <string name="er_x_blocked">被 X 攔截（可能需要登入，或目前網路不支援），請稍後再試</string>
+    <string name="er_x_no_media">該貼文沒有可下載的圖片或影片</string>
+    <string name="er_x_no_data">X 沒有回傳可解析的資料</string>
+    <string name="em_parsed_dedup">已去掉 {0} 個重複項</string>
+    <string name="em_link_parsed_before">該連結上次解析於 {0}，本次按最新內容解析</string>
 </resources>
