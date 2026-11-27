@@ -6,12 +6,18 @@ name: build-release
 #      （四个都齐了会自动优先用正式证书，无需改本文件）
 on:
   workflow_dispatch:
+    inputs:
+      compile_only:
+        description: '只编译 + 单测，不打包（出包前校验用）'
+        type: boolean
+        default: false
   push:
     branches: [ci/release]
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       YUNX_USE_MIRROR: "false"
       YUNX_RELEASE_USE_DEBUG_SIGN: "1"
@@ -49,9 +55,11 @@ jobs:
           ./gradlew --no-daemon testDebugUnitTest
 
       - name: 打包 release
+        if: ${{ !inputs.compile_only }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: 上传 APK
+        if: ${{ !inputs.compile_only }}
         uses: actions/upload-artifact@v4
         with:
           name: yunx-release-apk
