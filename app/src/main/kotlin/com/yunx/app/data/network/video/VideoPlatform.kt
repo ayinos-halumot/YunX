@@ -135,7 +135,15 @@ enum class VideoPlatform(
         loginUrl = "https://www.instagram.com/accounts/login/",
         cookieDomain = "instagram.com",
         loginBenefitRes = R.string.vm_video_benefit_instagram
-    );
+    ),
+
+    /**
+     * X（Twitter）：`/<user>/status/<id>` 帖子。
+     *
+     * **免登录**（公开帖子走 syndication 接口）；受保护/敏感内容需要登录，本平台不提供登录入口，
+     * 遇到时如实报错。图片取原图、视频/GIF 取最高码率 mp4。
+     */
+    TWITTER(R.string.vm_video_platform_x);
 
     /** 展示名 */
     val displayName: String
