@@ -18,6 +18,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # 默认令牌只有 read 权限，删产物需要 actions: write（否则 DELETE 返回 403）
+    permissions:
+      contents: read
+      actions: write
     env:
       YUNX_USE_MIRROR: "false"
       YUNX_RELEASE_USE_DEBUG_SIGN: "1"
