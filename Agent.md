@@ -2658,3 +2658,30 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **回退**：删 `XhsParser` 的 `motionUrlOf/imageItems` 与两处调用（恢复 `imageUrls` 单值结构）、
 `WechatMpParser` 的 `extractPictureItems/decodeWechatUrl` 与图片循环里的 motion 分支。
+
+---
+
+### 3.53 X（Twitter）平台 + 解析结果去重（1.5.0）
+
+**平台**：新增 `VideoPlatform.TWITTER`（展示名「X（推特）」），解析器 `TwitterParser`，**免登录**。
+链接：`x.com|twitter.com/<user>/status/<id>`、`/i/status/<id>`、`/i/web/status/<id>`。
+
+**取数**：X 公开嵌入接口 `https://cdn.syndication.twimg.com/tweet-result?id=<id>&lang=en&token=<token>`。
+- `token` = `((id / 1e15) * π).toString(36)` 去掉 `0` 与小数点（X 嵌入卡片长期使用的公开算法，见 `TwitterParser.embedToken`）；
+- 图片：`photos[].url` 追加 `?name=orig` 取原图；
+- 视频/动图：`mediaDetails[].video_info.variants` 里筛 `video/mp4`，按 `bit_rate` 取最大（`animated_gif` 的质量标签显示「动图」）；
+- 免登录只对**公开帖子**有效；404/410 → 不存在/受保护，403/429 → 被拦截（提示稍后再试）。
+
+**去重（通用，不止 X）**：在 `VideoParseRepository.parse` 的唯一出口做两件事：
+1. `MediaDedupe.dedupe(medias)`：解析结果内同 URL 只留第一次（提示「已去掉 N 个重复项」）；
+2. `SettingsRepository.lastParsedAt/markParsed`（SharedPreferences `yunx_parse_history`，最多 500 条、90 天清理）：
+   同一链接以前解析过时追加提示「该链接上次解析于 …」。
+
+**已知边界**：中国大陆网络直连 `cdn.syndication.twimg.com` 不通（本机实测超时），需用户自备可用网络/代理；
+受保护与敏感内容需登录，本平台不提供登录入口，遇到如实报错。
+
+**回退**：删 `TwitterParser.kt`、两个单测、枚举项、`VideoParsers` 注册、`VideoLinkParser` 两条规则、
+`MediaNaming` 的 `x`、`PlatformLogos` 映射与 `logo_x.xml`、5 语言字符串；
+`VideoParseRepository` 恢复成 `parser.parse(...).withSecureMediaUrls()` 单行，删 `MediaDedupe.kt` 与
+`SettingsRepository` 的解析历史方法。
+
