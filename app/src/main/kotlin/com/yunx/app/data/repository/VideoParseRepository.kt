@@ -26,11 +26,15 @@ import com.yunx.app.data.network.video.DetectedVideoLink
 import com.yunx.app.data.network.video.VideoHttp
 import com.yunx.app.data.network.video.VideoLinkParser
 import com.yunx.app.data.network.video.VideoParseErrorKind
+import com.yunx.app.data.network.video.MediaDedupe
 import com.yunx.app.data.network.video.VideoParseException
 import com.yunx.app.data.network.video.VideoParseResult
 import com.yunx.app.data.network.video.VideoParsers
 import com.yunx.app.data.network.video.VideoPlatform
 import com.yunx.app.util.AppStrings
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import okhttp3.OkHttpClient
 
 /**
@@ -64,7 +68,27 @@ class VideoParseRepository internal constructor(
             )
         // Cookie 用「当前生效账号」（主账号优先）；未登录为空串，由解析器决定匿名可用还是提示登录
         val cookie = accounts.activeCookie(resolved.platform)
-        val parsed = parser.parse(resolved, cookie).withSecureMediaUrls()
+        val raw = parser.parse(resolved, cookie).withSecureMediaUrls()
+
+        // ① 解析结果内去重（同一条帖子里重复给出的同一 URL 只保留一份）
+        val (dedupedMedias, removed) = MediaDedupe.dedupe(raw.medias)
+        var parsed = raw.copy(medias = dedupedMedias)
+
+        // ② 跨次解析提示：同一链接以前解析过时给一句可读提示（不阻止本次解析，只提醒）
+        val notices = ArrayList<String>(2)
+        if (removed > 0) notices += AppStrings.get(R.string.em_parsed_dedup, removed)
+        val previous = settings.lastParsedAt(resolved.url)
+        if (previous > 0) {
+            val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(previous))
+            notices += AppStrings.get(R.string.em_link_parsed_before, stamp)
+        }
+        settings.markParsed(resolved.url)
+        if (notices.isNotEmpty()) {
+            parsed = parsed.copy(
+                notice = listOf(parsed.notice, notices.joinToString("\n")).filter { it.isNotBlank() }.joinToString("\n")
+            )
+        }
+
         // 「详细命名」开关（下载设置）：在唯一出口统一改名 —— 新增平台不必各自记得处理
         return if (settings.mediaNamingDetailed) MediaNaming.detailed(parsed) else parsed
     }
