@@ -186,6 +186,15 @@ object VideoLinkParser {
         Rule(
             VideoPlatform.INSTAGRAM, "post",
             Regex("""instagram\.com/(?:[A-Za-z]{2}(?:-[A-Za-z]{2,4})?/)?tv/([A-Za-z0-9_\-]+)""", RegexOption.IGNORE_CASE)
+        ),
+        // ---------- X（Twitter） ----------
+        Rule(
+            VideoPlatform.TWITTER, "tweet",
+            Regex("""(?:x|twitter)\.com/(?:[A-Za-z0-9_]+/)?status(?:es)?/(\d{5,25})""", RegexOption.IGNORE_CASE)
+        ),
+        Rule(
+            VideoPlatform.TWITTER, "tweet",
+            Regex("""(?:x|twitter)\.com/i/(?:web/)?status/(\d{5,25})""", RegexOption.IGNORE_CASE)
         )
     )
 
