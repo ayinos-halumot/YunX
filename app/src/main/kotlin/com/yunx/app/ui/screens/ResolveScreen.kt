@@ -173,18 +173,17 @@ fun ResolveScreen(
     // 主页快捷方式：已「添加到主页」的收藏，在输入页下方以网格展示
     val homeBookmarks by bookmarkViewModel.homeBookmarks.collectAsState()
 
-    // 解析队列：点了某条 → 整页切到它的内容页（可挑选用以下载）；回退后选择存回队列
+    // 解析队列：点某条 → 进入「选择页」勾选要下载的内容；返回后由页面一的下载按钮统一下载
     val queueDetail = viewModel.queueDetailId?.let { id -> viewModel.parseQueue.firstOrNull { it.id == id } }
     if (queueDetail?.result != null) {
-        VideoResultSection(
+        QueueItemSelectionSection(
             result = queueDetail.result,
-            onDownloadMedia = { viewModel.downloadQueueItemMedias(queueDetail.id, listOf(it)) },
-            onDownloadAudio = { viewModel.downloadQueueItemMedias(queueDetail.id, listOf(it)) },
-            onDownloadAll = { viewModel.downloadQueueItemAll(queueDetail.id) },
-            onDownloadSelected = { viewModel.downloadQueueItemMedias(queueDetail.id, it) },
-            onBack = { viewModel.closeQueueDetail() },
             initialSelectedUrls = queueDetail.selectedUrls,
-            onSelectionChanged = { viewModel.updateQueueSelection(queueDetail.id, it) }
+            onConfirm = { urls ->
+                viewModel.updateQueueSelection(queueDetail.id, urls)
+                viewModel.closeQueueDetail()
+            },
+            onBack = { viewModel.closeQueueDetail() }
         )
         return
     }
@@ -680,12 +679,22 @@ private fun ResolveInputContent(
                 onOpen = { viewModel.openQueueItem(it) },
                 onRemove = { viewModel.removeQueueItem(it) }
             )
+            val chosenCount = viewModel.parseQueue.sumOf { it.chosenMedias().size }
             Text(
                 text = stringResource(R.string.rs_queue_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp, start = 4.dp)
             )
+            Button(
+                onClick = { viewModel.downloadQueueSelected() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                enabled = chosenCount > 0 && !isLoading
+            ) {
+                Text(stringResource(R.string.rs_queue_download_selected, chosenCount))
+            }
         }
 
         if (state is ResolveUiState.Error) {

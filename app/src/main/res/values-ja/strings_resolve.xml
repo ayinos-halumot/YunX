@@ -266,4 +266,13 @@
     <string name="rs_queue_waiting">待機中</string>
     <string name="rs_queue_parsing">解析中…</string>
     <string name="rs_queue_remove">削除</string>
+
+    <string name="rs_queue_selected_count">%1$d / %2$d 選択中</string>
+    <string name="rs_queue_done">完了（%1$d 件選択）</string>
+    <string name="rs_queue_clear_all">すべて解除</string>
+    <string name="rs_queue_item_media">メディア</string>
+    <string name="rs_queue_kind_image">画像</string>
+    <string name="rs_queue_kind_video">動画</string>
+    <string name="rs_queue_kind_audio">音声</string>
+    <string name="rs_queue_download_selected">選択項目をダウンロード（%1$d）</string>
 </resources>

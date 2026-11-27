@@ -266,4 +266,13 @@
     <string name="rs_queue_waiting">Waiting</string>
     <string name="rs_queue_parsing">Parsing…</string>
     <string name="rs_queue_remove">Remove</string>
+
+    <string name="rs_queue_selected_count">%1$d of %2$d selected</string>
+    <string name="rs_queue_done">Done (%1$d selected)</string>
+    <string name="rs_queue_clear_all">Clear all</string>
+    <string name="rs_queue_item_media">Media</string>
+    <string name="rs_queue_kind_image">Image</string>
+    <string name="rs_queue_kind_video">Video</string>
+    <string name="rs_queue_kind_audio">Audio</string>
+    <string name="rs_queue_download_selected">Download selected (%1$d)</string>
 </resources>

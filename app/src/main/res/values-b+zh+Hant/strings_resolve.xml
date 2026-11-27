@@ -266,4 +266,13 @@
     <string name="rs_queue_waiting">待解析</string>
     <string name="rs_queue_parsing">解析中…</string>
     <string name="rs_queue_remove">移除</string>
+
+    <string name="rs_queue_selected_count">已選 %1$d / %2$d</string>
+    <string name="rs_queue_done">完成（已選 %1$d）</string>
+    <string name="rs_queue_clear_all">全部取消</string>
+    <string name="rs_queue_item_media">媒體</string>
+    <string name="rs_queue_kind_image">圖片</string>
+    <string name="rs_queue_kind_video">影片</string>
+    <string name="rs_queue_kind_audio">音訊</string>
+    <string name="rs_queue_download_selected">下載所選（%1$d 項）</string>
 </resources>

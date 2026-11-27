@@ -266,4 +266,13 @@
     <string name="rs_queue_waiting">En attente</string>
     <string name="rs_queue_parsing">Analyse…</string>
     <string name="rs_queue_remove">Retirer</string>
+
+    <string name="rs_queue_selected_count">%1$d sur %2$d sélectionné(s)</string>
+    <string name="rs_queue_done">Terminé (%1$d sélectionné(s))</string>
+    <string name="rs_queue_clear_all">Tout désélectionner</string>
+    <string name="rs_queue_item_media">Média</string>
+    <string name="rs_queue_kind_image">Image</string>
+    <string name="rs_queue_kind_video">Vidéo</string>
+    <string name="rs_queue_kind_audio">Audio</string>
+    <string name="rs_queue_download_selected">Télécharger la sélection (%1$d)</string>
 </resources>
