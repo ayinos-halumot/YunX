@@ -395,6 +395,15 @@ fun ResolveScreen(
                     onDownloadSelected = { viewModel.downloadVideoMedias(it) },
                     onBack = { viewModel.backToInput() }
                 )
+                is ResolveUiState.VideoBatch -> VideoBatchSection(
+                    items = s.items,
+                    skippedDuplicates = s.skippedDuplicates,
+                    truncated = s.truncated,
+                    onToggle = { viewModel.toggleBatchSelected(it) },
+                    onToggleAll = { viewModel.setAllBatchSelected(it) },
+                    onDownloadSelected = { viewModel.downloadBatchSelected() },
+                    onBack = { viewModel.backToInput() }
+                )
                 else -> ResolveInputContent(
                     viewModel = viewModel,
                     scrollBehavior = scrollBehavior,
