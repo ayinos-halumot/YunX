@@ -637,9 +637,8 @@ private fun ResolveInputContent(
             OutlinedButton(
                 onClick = {
                     if (viewModel.addQueueItem(link)) {
-                        link = ""
-                        pwd = ""
-                        pwdEdited = false
+                        onLinkChange("")
+                        onPwdChange("")
                     }
                 },
                 modifier = Modifier
