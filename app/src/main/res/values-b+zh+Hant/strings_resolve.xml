@@ -247,4 +247,14 @@
     <string name="rs_category_image">圖片</string>
     <string name="rs_category_archive">壓縮檔</string>
     <string name="rs_category_other">其他</string>
+
+    <string name="rs_batch_title">批次解析</string>
+    <string name="rs_batch_summary">共 %1$d 條連結 · 已選 %2$d 條</string>
+    <string name="rs_batch_skipped">已略過 %1$d 條重複連結</string>
+    <string name="rs_batch_truncated">超過單次上限 20 條，已截斷 %1$d 條</string>
+    <string name="rs_batch_select_all">全選</string>
+    <string name="rs_batch_download_selected">下載所選（%1$d）</string>
+    <string name="rs_batch_nothing_selected">請先勾選要下載的條目</string>
+    <string name="rs_batch_item_media">%1$d 張圖 · %2$d 個影片</string>
+    <string name="rs_batch_parsing">解析中…</string>
 </resources>
