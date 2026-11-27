@@ -222,4 +222,11 @@
     <string name="em_log_logcat_unavailable">(Failed to read logs: logcat unavailable on this device)\n</string>
     <string name="em_log_no_output">(no output)\n</string>
     <string name="em_log_share_title">Share logs</string>
+
+    <string name="er_x_not_found">This post does not exist, was deleted, or is protected</string>
+    <string name="er_x_blocked">Blocked by X (login may be required, or the network is unsupported); try again later</string>
+    <string name="er_x_no_media">No downloadable images or videos in this post</string>
+    <string name="er_x_no_data">X returned no parsable data</string>
+    <string name="em_parsed_dedup">Removed {0} duplicate item(s)</string>
+    <string name="em_link_parsed_before">This link was parsed before at {0}; showing the latest content</string>
 </resources>
