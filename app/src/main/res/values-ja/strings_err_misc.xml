@@ -222,4 +222,11 @@
     <string name="em_log_logcat_unavailable">（ログの読み取りに失敗：本機の logcat が使用できません）\n</string>
     <string name="em_log_no_output">（出力なし）\n</string>
     <string name="em_log_share_title">ログを共有</string>
+
+    <string name="er_x_not_found">このポストは存在しないか、削除済み、または保護されています</string>
+    <string name="er_x_blocked">X によりブロックされました（ログインが必要、またはネットワーク非対応）。後で再試行してください</string>
+    <string name="er_x_no_media">このポストにダウンロード可能な画像・動画がありません</string>
+    <string name="er_x_no_data">X から解析可能なデータが返されませんでした</string>
+    <string name="em_parsed_dedup">重複 {0} 件を削除しました</string>
+    <string name="em_link_parsed_before">このリンクは以前 {0} に解析されました。最新の内容を表示しています</string>
 </resources>
