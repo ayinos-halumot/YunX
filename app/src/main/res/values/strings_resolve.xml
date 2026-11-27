@@ -258,4 +258,13 @@
     <string name="rs_batch_nothing_selected">请先勾选要下载的条目</string>
     <string name="rs_batch_item_media">%1$d 张图 · %2$d 个视频</string>
     <string name="rs_batch_parsing">解析中…</string>
+
+    <string name="rs_queue_title">解析队列（%1$d）</string>
+    <string name="rs_queue_add">添加新解析</string>
+    <string name="rs_queue_hint">点条目进入内容页，可挑选要下载的部分；不打勾的条目不会下载</string>
+    <string name="rs_queue_unrecognized">无法识别的链接</string>
+    <string name="rs_queue_full">队列最多 %1$d 条</string>
+    <string name="rs_queue_waiting">待解析</string>
+    <string name="rs_queue_parsing">解析中…</string>
+    <string name="rs_queue_remove">移除</string>
 </resources>

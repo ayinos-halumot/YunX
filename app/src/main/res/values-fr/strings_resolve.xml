@@ -257,4 +257,13 @@
     <string name="rs_batch_nothing_selected">Sélectionnez d\'abord un élément</string>
     <string name="rs_batch_item_media">%1$d images · %2$d vidéos</string>
     <string name="rs_batch_parsing">Analyse…</string>
+
+    <string name="rs_queue_title">File d’analyse (%1$d)</string>
+    <string name="rs_queue_add">Nouvelle analyse</string>
+    <string name="rs_queue_hint">Touchez un élément pour choisir quoi télécharger ; les éléments non cochés sont ignorés</string>
+    <string name="rs_queue_unrecognized">Lien non reconnu</string>
+    <string name="rs_queue_full">La file contient au plus %1$d éléments</string>
+    <string name="rs_queue_waiting">En attente</string>
+    <string name="rs_queue_parsing">Analyse…</string>
+    <string name="rs_queue_remove">Retirer</string>
 </resources>

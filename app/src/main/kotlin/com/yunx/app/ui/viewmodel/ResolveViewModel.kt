@@ -122,6 +122,37 @@ sealed interface ResolveUiState {
     ) : ResolveUiState
 }
 
+/**
+ * 解析队列里的一行。
+ *
+ * @param selectedUrls 该条目里**被选中**的媒体 url；null = 从没进过内容页（默认视为全选）
+ * @param touched 是否进过内容页并改过选择（决定队列行显示 √ / 半选方块 / 空）
+ */
+data class ParseQueueItem(
+    val id: Long,
+    val url: String,
+    val link: DetectedVideoLink?,
+    val result: VideoParseResult? = null,
+    val error: String? = null,
+    val parsing: Boolean = false,
+    val selectedUrls: Set<String>? = null
+) {
+    /** 是否全部选中（含「没进过内容页」的默认全选） */
+    val allSelected: Boolean get() = result != null &&
+        (selectedUrls == null || selectedUrls.size >= result.medias.count { it.url.isNotBlank() })
+
+    /** 是否部分选中 */
+    val partiallySelected: Boolean get() = result != null && selectedUrls != null &&
+        selectedUrls.isNotEmpty() && !allSelected
+
+    /** 实际要下载的媒体 */
+    fun chosenMedias(): List<VideoMedia> {
+        val res = result ?: return emptyList()
+        val sel = selectedUrls ?: return res.medias
+        return res.medias.filter { it.url in sel }
+    }
+}
+
 /** 多链接解析里的一个条目 */
 data class VideoBatchItem(
     val link: DetectedVideoLink,
@@ -1090,6 +1121,174 @@ class ResolveViewModel(
                 uiState = ResolveUiState.Error(AppStrings.get(R.string.rs_parse_failed_retry))
             }
         }
+    }
+
+    // ---------- 解析队列（多链接，1.5.1 改进版） ----------
+
+    /** 输入页下方常驻的解析队列（SnapshotStateList：增删改都会触发重组） */
+    val parseQueue = mutableStateListOf<ParseQueueItem>()
+
+    /** 队列里正在查看内容页的条目 id；null = 停留在输入/队列页 */
+    var queueDetailId by mutableStateOf<Long?>(null)
+        private set
+
+    /** 队列页提示（如「链接无法识别」），由界面消费后清空 */
+    val queueNotice = mutableStateOf("")
+
+    private var nextQueueId = 1L
+
+    /** 「添加新解析」：把输入内容作为一条队列项加入（不立刻解析） */
+    fun addQueueItem(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return false
+        val link = VideoLinkParser.parse(trimmed) ?: VideoLinkParser.parseAll(trimmed).firstOrNull()
+        if (link == null) {
+            queueNotice.value = AppStrings.get(R.string.rs_queue_unrecognized)
+            return false
+        }
+        if (parseQueue.size >= 20) {
+            queueNotice.value = AppStrings.get(R.string.rs_queue_full, 20)
+            return false
+        }
+        parseQueue.add(ParseQueueItem(id = nextQueueId++, url = trimmed, link = link))
+        return true
+    }
+
+    fun removeQueueItem(id: Long) {
+        val index = parseQueue.indexOfFirst { it.id == id }
+        if (index >= 0) parseQueue.removeAt(index)
+        if (queueDetailId == id) queueDetailId = null
+    }
+
+    /** 「开始解析」：把队列里未解析的条目并发解析（并发 3） */
+    fun startQueueParse() {
+        val repo = videoParseRepository ?: return
+        val pending = parseQueue.filter { it.result == null && it.error == null && !it.parsing }
+        if (pending.isEmpty()) return
+        pending.forEach { item -> replaceQueueItem(item.id) { it.copy(parsing = true, error = null) } }
+        viewModelScope.launch {
+            val semaphore = Semaphore(3)
+            coroutineScope {
+                pending.forEach { item ->
+                    launch {
+                        semaphore.withPermit {
+                            val link = item.link ?: return@withPermit
+                            val updated = try {
+                                val result = repo.parse(link)
+                                item.copy(parsing = false, result = result, error = null, selectedUrls = null)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: VideoParseException) {
+                                item.copy(parsing = false, error = e.userMessage())
+                            } catch (e: Exception) {
+                                item.copy(parsing = false, error = AppStrings.get(R.string.rs_parse_failed_retry))
+                            }
+                            replaceQueueItem(item.id) { updated }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun replaceQueueItem(id: Long, transform: (ParseQueueItem) -> ParseQueueItem) {
+        val index = parseQueue.indexOfFirst { it.id == id }
+        if (index >= 0) parseQueue[index] = transform(parseQueue[index])
+    }
+
+    /** 打开队列某项的内容页（仅已解析成功的条目） */
+    fun openQueueItem(id: Long) {
+        if (parseQueue.firstOrNull { it.id == id }?.result == null) return
+        queueDetailId = id
+    }
+
+    /** 记录内容页里的选择（回退到队列后据此显示 √ / 半选方块 / 空） */
+    fun updateQueueSelection(id: Long, urls: Set<String>) {
+        replaceQueueItem(id) { it.copy(selectedUrls = urls) }
+    }
+
+    fun closeQueueDetail() { queueDetailId = null }
+
+    /** 队列页「下载所选」：逐条按各自的选择入队 */
+    fun downloadQueueSelected() {
+        val targets = parseQueue.mapNotNull { item -> item.result?.let { it to item.chosenMedias() } }
+            .filter { it.second.isNotEmpty() }
+        if (targets.isEmpty()) {
+            downloadError = AppStrings.get(R.string.rs_batch_nothing_selected)
+            return
+        }
+        viewModelScope.launch {
+            var okCount = 0
+            var failReason: String? = null
+            try {
+                for ((result, medias) in targets) okCount += enqueueResultMedias(result, medias)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failReason = e.message
+            }
+            finishEnqueue(okCount, failReason)
+        }
+    }
+
+    /** 内容页（来自解析队列）里点单个/所选/全部下载 —— 都直接按该条目的解析结果入队 */
+    fun downloadQueueItemMedias(id: Long, medias: List<VideoMedia>) {
+        val result = parseQueue.firstOrNull { it.id == id }?.result ?: return
+        if (medias.isEmpty()) return
+        viewModelScope.launch {
+            var okCount = 0
+            var failReason: String? = null
+            try {
+                okCount = enqueueResultMedias(result, medias)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failReason = e.message
+            }
+            finishEnqueue(okCount, failReason)
+        }
+    }
+
+    fun downloadQueueItemAll(id: Long) {
+        val result = parseQueue.firstOrNull { it.id == id }?.result ?: return
+        downloadQueueItemMedias(id, result.medias)
+    }
+
+    private fun finishEnqueue(okCount: Int, failReason: String?) {
+        if (okCount > 0) {
+            downloadError = AppStrings.get(R.string.rs_added_downloads, okCount)
+            downloadStarted = true
+        } else {
+            downloadError = failReason?.takeIf { it.isNotBlank() }
+                ?: AppStrings.get(R.string.rs_add_download_failed)
+        }
+    }
+
+    /** 把一条解析结果里的指定媒体逐个入队（文件夹规则与「全部下载」一致），返回成功入队条数 */
+    private suspend fun enqueueResultMedias(result: VideoParseResult, medias: List<VideoMedia>): Int {
+        if (medias.isEmpty()) return 0
+        val useFolder = medias.size > 1 && batchFolderProvider()
+        val folder = if (useFolder) {
+            if (detailedNamingProvider()) MediaNaming.folderName(result)
+            else DownloadPathPolicy.sanitizeName(result.title).take(40)
+        } else ""
+        var count = 0
+        medias.forEachIndexed { i, media ->
+            val index = result.medias.indexOf(media).takeIf { it >= 0 }?.plus(1) ?: (i + 1)
+            val name = media.fileName.ifBlank { videoMediaFileName(result.title, index, media.kind) }
+            downloadManager.enqueue(
+                url = media.url,
+                fileName = if (folder.isBlank()) name else "$folder/$name",
+                headers = media.headers,
+                size = media.size,
+                platform = DownloadPlatform.VIDEO,
+                mergeAudioUrl = media.audioUrl,
+                mergeAudioHeaders = media.audioHeaders,
+                motionUrl = media.motionUrl
+            )
+            count++
+        }
+        return count
     }
 
     // ---------- 多链接批量解析（1.5.1） ----------

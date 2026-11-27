@@ -257,4 +257,13 @@
     <string name="rs_batch_nothing_selected">先に項目を選択してください</string>
     <string name="rs_batch_item_media">画像 %1$d 枚 · 動画 %2$d 本</string>
     <string name="rs_batch_parsing">解析中…</string>
+
+    <string name="rs_queue_title">解析キュー（%1$d）</string>
+    <string name="rs_queue_add">新規解析を追加</string>
+    <string name="rs_queue_hint">項目をタップして内容を開き、ダウンロードする部分を選択できます（未選択の項目は対象外）</string>
+    <string name="rs_queue_unrecognized">認識できないリンク</string>
+    <string name="rs_queue_full">キューは最大 %1$d 件</string>
+    <string name="rs_queue_waiting">待機中</string>
+    <string name="rs_queue_parsing">解析中…</string>
+    <string name="rs_queue_remove">削除</string>
 </resources>

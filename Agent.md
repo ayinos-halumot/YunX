@@ -2717,6 +2717,28 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 **注意**：默认保存位置随之变化（图片在 Pictures、视频在 Movies），文件管理器「下载」里不再有它们；
 自定义 SAF 目录不受影响。
 
+---
+
+### 3.56 解析队列（多链接交互改进，1.5.3）
+
+**交互（用户指定）**
+1. 解析页按钮改为两个：左「添加新解析」右「开始解析」；
+2. 「添加新解析」把输入框内容作为一条**队列项**加入（不立刻解析），并清空输入框，便于继续贴下一条；
+3. 队列常驻输入框下方（`viewModel.parseQueue: SnapshotStateList<ParseQueueItem>`），每行显示平台/标题/状态/三态勾选；
+4. 单击某行（已解析成功）→ **整页进入该条内容页**，可勾选要用以下载的部分；
+5. 回退后队列行按选择显示：全选 = √、部分选 = 半选方块、未选 = 空（`TriStateCheckbox`，只作指示）；
+6. 「开始解析」解析队列里所有未解析项（并发 3、逐条回填）；队列为空时仍是原来的单链接解析；
+7. 队列上限 20 条；「下载所选」逐条按各自选择入队（未进过内容页 = 默认全选）。
+
+**实现要点**
+- `ParseQueueItem`（id/url/link/result/error/parsing/selectedUrls）+ `chosenMedias()`、`allSelected`、`partiallySelected`；
+- `VideoResultSection` 新增 `initialSelectedUrls` / `onSelectionChanged`：进入时恢复上次选择、默认全选，变化即回写队列；
+- 内容页的下载走 `downloadQueueItemMedias/All`（不再依赖 `uiState == Video`），与 `downloadQueueSelected` 共用 `enqueueResultMedias`；
+- 队列组件 `ui/screens/ParseQueueSection.kt`（`ParseQueueList`）。
+
+**回退**：删 `ParseQueueItem/parseQueue/queueDetailId/queueNotice` 与队列函数、`ParseQueueSection.kt`、
+`VideoResultSection` 的两个新参数、输入页按钮改回单个、`rs_queue_*` 字符串。
+
 **回退**：`mediaStoreDestination` 恢复固定 `MediaStore.Downloads` + `DIRECTORY_DOWNLOADS`、
 `mediaStoreNameExists` 恢复两参数；`openSavedFile` 恢复 `*/*` + chooser 版本并去掉 fileName 参数。
 

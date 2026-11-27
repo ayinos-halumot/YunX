@@ -257,4 +257,13 @@
     <string name="rs_batch_nothing_selected">請先勾選要下載的條目</string>
     <string name="rs_batch_item_media">%1$d 張圖 · %2$d 個影片</string>
     <string name="rs_batch_parsing">解析中…</string>
+
+    <string name="rs_queue_title">解析佇列（%1$d）</string>
+    <string name="rs_queue_add">新增解析</string>
+    <string name="rs_queue_hint">點條目進入內容頁，可挑選要下載的部分；未勾選的條目不會下載</string>
+    <string name="rs_queue_unrecognized">無法辨識的連結</string>
+    <string name="rs_queue_full">佇列最多 %1$d 條</string>
+    <string name="rs_queue_waiting">待解析</string>
+    <string name="rs_queue_parsing">解析中…</string>
+    <string name="rs_queue_remove">移除</string>
 </resources>
