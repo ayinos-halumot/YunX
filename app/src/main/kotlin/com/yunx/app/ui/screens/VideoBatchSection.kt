@@ -151,18 +151,20 @@ fun VideoBatchSection(
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            val mediaSummary = if (result != null) {
+                                stringResource(
+                                    R.string.rs_batch_item_media,
+                                    result.imageCount,
+                                    result.videoCount
+                                )
+                            } else {
+                                ""
+                            }
                             val subtitle = when {
-                                item.error != null -> item.error
-                                result != null -> buildString {
-                                    if (result.author.isNotBlank()) append(result.author).append(' · ')
-                                    append(
-                                        stringResource(
-                                            R.string.rs_batch_item_media,
-                                            result.imageCount,
-                                            result.videoCount
-                                        )
-                                    )
-                                }
+                                item.error != null -> item.error.orEmpty()
+                                result != null -> listOf(result.author, mediaSummary)
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(" · ")
                                 else -> stringResource(R.string.rs_parsing)
                             }
                             Text(
