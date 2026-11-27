@@ -59,6 +59,7 @@ import com.yunx.app.data.network.XunleiKouling
 import com.yunx.app.data.network.model.DownloadLink
 import com.yunx.app.data.network.model.ShareFile
 import com.yunx.app.data.network.model.ShareSession
+import com.yunx.app.data.network.video.DetectedVideoLink
 import com.yunx.app.data.network.video.VideoLinkParser
 import com.yunx.app.data.network.video.VideoMedia
 import com.yunx.app.data.network.video.VideoMediaKind
@@ -110,7 +111,24 @@ sealed interface ResolveUiState {
 
     /** 视频解析结果（抖音/小红书/快手/微博/AcFun/B站/Pixiv，与网盘流程互不干扰） */
     data class Video(val result: VideoParseResult) : ResolveUiState
+
+    /** 多链接解析：每条链接一个条目，可勾选后批量加入下载 */
+    data class VideoBatch(
+        val items: List<VideoBatchItem>,
+        /** 被跳过的重复链接条数 */
+        val skippedDuplicates: Int = 0,
+        /** 超过单次上限被截断的条数 */
+        val truncated: Int = 0
+    ) : ResolveUiState
 }
+
+/** 多链接解析里的一个条目 */
+data class VideoBatchItem(
+    val link: DetectedVideoLink,
+    val result: VideoParseResult? = null,
+    val error: String? = null,
+    val selected: Boolean = true
+)
 
 /**
  * 解析页 ViewModel：分享解析状态机 + 目录导航 + 下载直链。
@@ -1045,6 +1063,11 @@ class ResolveViewModel(
      * @param pwd 网盘分享的提取码：仅在回退到网盘流程时透传，视频流程不使用。
      */
     fun startVideoResolve(text: String, pwd: String? = null) {
+        // 一次贴多条链接：转批量解析（去重 + 上限 20 条）
+        if (VideoLinkParser.parseAll(text).size > 1) {
+            startVideoBatchResolve(text)
+            return
+        }
         val link = VideoLinkParser.parse(text)
         val repo = videoParseRepository
         // 识别不到视频链接 / 未注入视频仓库：退回原有网盘解析（startResolve 内部会先试 GitHub再试网盘）
@@ -1065,6 +1088,118 @@ class ResolveViewModel(
                 uiState = ResolveUiState.Error(e.userMessage())
             } catch (e: Exception) {
                 uiState = ResolveUiState.Error(AppStrings.get(R.string.rs_parse_failed_retry))
+            }
+        }
+    }
+
+    // ---------- 多链接批量解析（1.5.1） ----------
+
+    /** 单次最多解析条数（超过截断并提示） */
+    private val batchLimit = 20
+
+    /**
+     * 批量解析：把文本里所有能识别的链接逐条解析（并发 3），结果进 [ResolveUiState.VideoBatch]。
+     * 重复链接跳过并计数；超过 [batchLimit] 条的部分截断并计数。
+     */
+    fun startVideoBatchResolve(text: String) {
+        val repo = videoParseRepository ?: return
+        val unique = VideoLinkParser.parseAll(text)
+        if (unique.isEmpty()) {
+            viewModelScope.launch { uiState = ResolveUiState.Error(AppStrings.get(R.string.rs_parse_failed_retry)) }
+            return
+        }
+        val detected = VideoLinkParser.countDetected(text)
+        val skipped = (detected - unique.size).coerceAtLeast(0)
+        val limited = unique.take(batchLimit)
+        val truncated = unique.size - limited.size
+        viewModelScope.launch {
+            uiState = ResolveUiState.Loading
+            uiState = ResolveUiState.VideoBatch(
+                items = limited.map { VideoBatchItem(it) },
+                skippedDuplicates = skipped,
+                truncated = truncated
+            )
+            val semaphore = Semaphore(3)
+            coroutineScope {
+                limited.forEachIndexed { index, link ->
+                    launch {
+                        semaphore.withPermit {
+                            val item = try {
+                                VideoBatchItem(link, result = repo.parse(link))
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: VideoParseException) {
+                                VideoBatchItem(link, error = e.userMessage())
+                            } catch (e: Exception) {
+                                VideoBatchItem(link, error = AppStrings.get(R.string.rs_parse_failed_retry))
+                            }
+                            updateBatchItem(index) { item.copy(selected = it.selected) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateBatchItem(index: Int, transform: (VideoBatchItem) -> VideoBatchItem) {
+        val state = uiState as? ResolveUiState.VideoBatch ?: return
+        uiState = state.copy(items = state.items.mapIndexed { i, it -> if (i == index) transform(it) else it })
+    }
+
+    fun toggleBatchSelected(index: Int) = updateBatchItem(index) { it.copy(selected = !it.selected) }
+
+    fun setAllBatchSelected(selected: Boolean) {
+        val state = uiState as? ResolveUiState.VideoBatch ?: return
+        uiState = state.copy(items = state.items.map { it.copy(selected = selected && it.result != null) })
+    }
+
+    /** 把勾选且解析成功的条目全部加入下载（每条按「多图新建文件夹」设置决定是否建文件夹） */
+    fun downloadBatchSelected() {
+        val state = uiState as? ResolveUiState.VideoBatch ?: return
+        val targets = state.items.filter { it.selected }.mapNotNull { it.result }
+        if (targets.isEmpty()) {
+            downloadError = AppStrings.get(R.string.rs_batch_nothing_selected)
+            return
+        }
+        viewModelScope.launch {
+            var okCount = 0
+            var failReason: String? = null
+            try {
+                for (result in targets) {
+                    val medias = result.medias
+                    if (medias.isEmpty()) continue
+                    val useFolder = medias.size > 1 && batchFolderProvider()
+                    val folder = if (useFolder) {
+                        if (detailedNamingProvider()) MediaNaming.folderName(result)
+                        else DownloadPathPolicy.sanitizeName(result.title).take(40)
+                    } else ""
+                    medias.forEachIndexed { i, media ->
+                        val index = result.medias.indexOf(media).takeIf { it >= 0 }?.plus(1) ?: (i + 1)
+                        val name = media.fileName.ifBlank { videoMediaFileName(result.title, index, media.kind) }
+                        downloadManager.enqueue(
+                            url = media.url,
+                            fileName = if (folder.isBlank()) name else "$folder/$name",
+                            headers = media.headers,
+                            size = media.size,
+                            platform = DownloadPlatform.VIDEO,
+                            mergeAudioUrl = media.audioUrl,
+                            mergeAudioHeaders = media.audioHeaders,
+                            motionUrl = media.motionUrl
+                        )
+                        okCount++
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failReason = e.message
+            }
+            if (okCount > 0) {
+                downloadError = AppStrings.get(R.string.rs_added_downloads, okCount)
+                downloadStarted = true
+            } else {
+                downloadError = failReason?.takeIf { it.isNotBlank() }
+                    ?: AppStrings.get(R.string.rs_add_download_failed)
             }
         }
     }
