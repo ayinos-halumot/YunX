@@ -642,6 +642,9 @@ fun DriveScreen(
                 onRefresh = { driveQuotaViewModel.loadAll() },
                 modifier = Modifier.fillMaxSize()
             ) {
+                // 折叠状态提升到 LazyColumn 之外：放在列表内容里会随 item 回收丢失
+                var accountsExpanded by rememberSaveable { mutableStateOf(true) }
+                var videoExpanded by rememberSaveable { mutableStateOf(true) }
                 LazyColumn(
                 // ★ 列表状态**提升到本层**：进入某个网盘页时 AnimatedContent 会把账号列表移出组合，
                 //   状态若留在列表里（隐式 rememberLazyListState）就丢了，返回账号页会回滚到顶部
@@ -652,50 +655,62 @@ fun DriveScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
-                    AccountSectionLabel(stringResource(R.string.csb_drive_section_accounts))
-                }
-                item {
-                    Text(
-                        text = stringResource(R.string.csb_drive_accounts_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                item(key = "drive_section_header") {
+                    CollapsibleSectionHeader(
+                        title = stringResource(R.string.csb_drive_section_accounts),
+                        expanded = accountsExpanded,
+                        onToggle = { accountsExpanded = !accountsExpanded }
                     )
                 }
-                // 顺序 / 隐藏未登录由顶栏「排序」弹窗控制：这里只按设置渲染，
-                // 数据与点击行为在 driveItems 里一一绑定（改顺序不会改语义）。
-                items(visibleDriveItems, key = { it.account.id }) { item ->
-                    DriveAccountCard(
-                        account = item.account,
-                        quota = item.quota,
-                        onClick = item.onClick,
-                        onMoreClick = item.onMoreClick
-                    )
-                }
-                if (hiddenHint.isNotEmpty()) {
-                    // 别让账号「凭空消失」：明确告诉用户藏了什么、去哪恢复
-                    item(key = "drive_hidden_hint") {
+                if (accountsExpanded) {
+                    item(key = "drive_section_subtitle") {
                         Text(
-                            text = stringResource(R.string.csb_drive_hidden_hint, hiddenHint),
-                            style = MaterialTheme.typography.bodySmall,
+                            text = stringResource(R.string.csb_drive_accounts_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                     }
+                    // 顺序 / 隐藏未登录由顶栏「排序」弹窗控制：这里只按设置渲染，
+                    // 数据与点击行为在 driveItems 里一一绑定（改顺序不会改语义）。
+                    items(visibleDriveItems, key = { it.account.id }) { item ->
+                        DriveAccountCard(
+                            account = item.account,
+                            quota = item.quota,
+                            onClick = item.onClick,
+                            onMoreClick = item.onMoreClick
+                        )
+                    }
+                    if (hiddenHint.isNotEmpty()) {
+                        // 别让账号「凭空消失」：明确告诉用户藏了什么、去哪恢复
+                        item(key = "drive_hidden_hint") {
+                            Text(
+                                text = stringResource(R.string.csb_drive_hidden_hint, hiddenHint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
+                    }
                 }
-                // 视频解析：平台列表与登录态全部由 VideoAccountSection 自己呈现，这里只透传数据与回调
+                // 媒体解析：平台列表与登录态全部由 VideoAccountSection 自己呈现，这里只透传数据与回调
                 item(key = "video_section_label") {
-                    AccountSectionLabel(stringResource(R.string.csb_drive_section_video))
-                }
-                item(key = "video_section") {
-                    VideoAccountSection(
-                        loginState = videoLoginState,
-                        accounts = videoAccounts,
-                        onLogin = onVideoLogin,
-                        onManage = { showVideoSheet = it },
-                        hideUnlogged = hideUnloggedDrives
+                    CollapsibleSectionHeader(
+                        title = stringResource(R.string.csb_drive_section_video),
+                        expanded = videoExpanded,
+                        onToggle = { videoExpanded = !videoExpanded }
                     )
+                }
+                if (videoExpanded) {
+                    item(key = "video_section") {
+                        VideoAccountSection(
+                            loginState = videoLoginState,
+                            accounts = videoAccounts,
+                            onLogin = onVideoLogin,
+                            onManage = { showVideoSheet = it },
+                            hideUnlogged = hideUnloggedDrives
+                        )
+                    }
                 }
             }
             }
@@ -1258,4 +1273,25 @@ private fun DriveSortDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.csb_drive_done)) }
         }
     )
+}
+
+/** 账号页分组标题：点击整行折叠/展开 */
+@Composable
+private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AccountSectionLabel(title)
+        Spacer(Modifier.weight(1f))
+        Icon(
+            imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
 }

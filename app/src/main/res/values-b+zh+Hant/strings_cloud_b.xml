@@ -23,7 +23,7 @@
     <string name="csb_drive_hidden_hint">已隱藏 %1$s，點右上角排序可恢復</string>
     <string name="csb_drive_section_accounts">網盤帳號</string>
     <string name="csb_drive_accounts_subtitle">登入後即可自動攜帶憑證解析與下載</string>
-    <string name="csb_drive_section_video">影片解析</string>
+    <string name="csb_drive_section_video">媒體解析</string>
     <string name="csb_drive_github_browse_home">瀏覽我的主頁</string>
     <string name="csb_drive_github_config_token">設定 Token</string>
     <string name="csb_drive_github_clear_token">清除 Token</string>

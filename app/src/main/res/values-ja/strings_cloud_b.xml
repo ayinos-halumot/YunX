@@ -23,7 +23,7 @@
     <string name="csb_drive_hidden_hint">%1$s を非表示にしました。右上の並べ替えから復元できます</string>
     <string name="csb_drive_section_accounts">クラウドドライブのアカウント</string>
     <string name="csb_drive_accounts_subtitle">ログインすると認証情報が自動的に使われ、解析とダウンロードが行われます</string>
-    <string name="csb_drive_section_video">動画の解析</string>
+    <string name="csb_drive_section_video">メディア解析</string>
     <string name="csb_drive_github_browse_home">プロフィールを開く</string>
     <string name="csb_drive_github_config_token">Token を設定</string>
     <string name="csb_drive_github_clear_token">Token を削除</string>

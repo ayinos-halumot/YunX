@@ -196,4 +196,8 @@
     <string name="settings_batch_folder_desc_off">Multiple files are saved directly to the default download folder</string>
     <string name="dl_separator"> · </string>
     <string name="dl_unknown_progress">…</string>
+
+    <string name="dl_tab_all">All (%1$d)</string>
+    <string name="dl_tab_in_progress">Active (%1$d)</string>
+    <string name="dl_tab_completed">Completed (%1$d)</string>
 </resources>

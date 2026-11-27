@@ -85,6 +85,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -92,6 +94,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -143,20 +146,35 @@ private data class DownloadListEntry(
  * 组的时间取组内最新一条；时间相同用 key 兜底，保证顺序稳定（同一批入队的任务 createTime 常相同）。
  */
 private fun buildDownloadEntries(tasks: List<DownloadTaskEntity>): List<DownloadListEntry> {
-    val singles = tasks.filter { !it.fileName.contains('/') }
-        .map { DownloadListEntry("task_${it.id}", it.createTime, null, listOf(it)) }
-    val groups = tasks.filter { it.fileName.contains('/') }
+    // 显式文件夹（批量下载建了文件夹）
+    val folderGroups = tasks.filter { it.fileName.contains('/') }
         .groupBy { it.fileName.substringBefore('/') }
         .map { (folder, list) ->
-            DownloadListEntry(
-                key = "folder_$folder",
-                sortTime = list.maxOf { it.createTime },
-                folder = folder,
-                tasks = list
-            )
+            DownloadListEntry("folder_$folder", list.maxOf { it.createTime }, folder, list)
         }
-    return (singles + groups)
+
+    val singles = tasks.filter { !it.fileName.contains('/') }
+    // ★ 没建文件夹的「同一条链接」也要能折叠：按 平台 + 去掉末尾序号的标题 归组，组内 >=2 才折叠。
+    //   文件名由 MediaNaming 生成（标题_1.jpg / 标题_video_1.mp4），去掉 [(_video)_数字] 就是同源标题。
+    val sameLink = singles.groupBy { sameLinkGroupKey(it) }
+        .filter { (key, list) -> key.isNotBlank() && list.size >= 2 }
+        .map { (key, list) ->
+            DownloadListEntry("same_$key", list.maxOf { it.createTime }, key.substringAfter('|'), list)
+        }
+    val groupedIds = sameLink.flatMap { it.tasks }.map { it.id }.toHashSet()
+    val plain = singles.filter { it.id !in groupedIds }
+        .map { DownloadListEntry("task_${it.id}", it.createTime, null, listOf(it)) }
+
+    return (plain + sameLink + folderGroups)
         .sortedWith(compareByDescending<DownloadListEntry> { it.sortTime }.thenBy { it.key })
+}
+
+/** 同链接分组键：平台 + 去掉末尾序号的标题；取不出标题时返回空串（不参与折叠） */
+private fun sameLinkGroupKey(task: DownloadTaskEntity): String {
+    val stem = task.fileName.substringBeforeLast('.', task.fileName)
+    val base = stem.replace(Regex("(_video)?_\\d+$"), "")
+    if (base.isBlank() || base == stem && stem.isBlank()) return ""
+    return task.platform + "|" + base
 }
 
 @Composable
@@ -245,8 +263,31 @@ fun DownloadScreen(
                     onResumeAll = { viewModel.resumeAll() },
                     onDeleteAll = { showDeleteAllConfirm = true }
                 )
+                // 三个分栏：全部 / 下载中（未完成）/ 已完成
+                var statusFilter by rememberSaveable { mutableIntStateOf(0) }
+                val completedCount = tasks.count { it.status == DownloadTaskEntity.STATUS_COMPLETED }
+                val visibleTasks = remember(tasks, statusFilter) {
+                    when (statusFilter) {
+                        1 -> tasks.filter { it.status != DownloadTaskEntity.STATUS_COMPLETED }
+                        2 -> tasks.filter { it.status == DownloadTaskEntity.STATUS_COMPLETED }
+                        else -> tasks
+                    }
+                }
+                TabRow(selectedTabIndex = statusFilter) {
+                    listOf(
+                        stringResource(R.string.dl_tab_all, tasks.size),
+                        stringResource(R.string.dl_tab_in_progress, tasks.size - completedCount),
+                        stringResource(R.string.dl_tab_completed, completedCount)
+                    ).forEachIndexed { index, title ->
+                        Tab(
+                            selected = statusFilter == index,
+                            onClick = { statusFilter = index },
+                            text = { Text(title, maxLines = 1) }
+                        )
+                    }
+                }
                 // 单文件任务与「文件夹组」混排，统一按创建时间倒序（Composable 上下文里算，LazyColumn 的 item 块不是 @Composable）。
-                val entries = remember(tasks) { buildDownloadEntries(tasks) }
+                val entries = remember(visibleTasks) { buildDownloadEntries(visibleTasks) }
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)

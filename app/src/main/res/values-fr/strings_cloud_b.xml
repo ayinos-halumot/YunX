@@ -23,7 +23,7 @@
     <string name="csb_drive_hidden_hint">%1$s masqués. Appuyez sur Trier en haut à droite pour les restaurer.</string>
     <string name="csb_drive_section_accounts">Comptes cloud</string>
     <string name="csb_drive_accounts_subtitle">Connectez-vous pour utiliser automatiquement vos identifiants lors de l\'analyse et du téléchargement</string>
-    <string name="csb_drive_section_video">Analyse vidéo</string>
+    <string name="csb_drive_section_video">Analyse média</string>
     <string name="csb_drive_github_browse_home">Voir mon profil</string>
     <string name="csb_drive_github_config_token">Configurer le jeton</string>
     <string name="csb_drive_github_clear_token">Effacer le jeton</string>

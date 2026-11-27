@@ -196,4 +196,8 @@
     <string name="settings_batch_folder_desc_off">多文件直接保存到默认下载目录，不新建文件夹</string>
     <string name="dl_separator"> · </string>
     <string name="dl_unknown_progress">…</string>
+
+    <string name="dl_tab_all">全部（%1$d）</string>
+    <string name="dl_tab_in_progress">下载中（%1$d）</string>
+    <string name="dl_tab_completed">已完成（%1$d）</string>
 </resources>

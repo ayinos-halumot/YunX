@@ -2736,6 +2736,22 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 - 内容页的下载走 `downloadQueueItemMedias/All`（不再依赖 `uiState == Video`），与 `downloadQueueSelected` 共用 `enqueueResultMedias`；
 - 队列组件 `ui/screens/ParseQueueSection.kt`（`ParseQueueList`）。
 
+---
+
+### 3.57 布局优化（1.5.4）
+
+1. **账号页标题**：`csb_drive_section_video` 由「视频解析」改为「媒体解析」（5 语言）。
+2. **两个分组可折叠**：`DriveScreen` 新增 `CollapsibleSectionHeader`（整行可点 + 右侧箭头），
+   「网盘账号」「媒体解析」各自折叠并记忆（`rememberSaveable`，**状态声明提升到 LazyColumn 之外**，
+   否则列表回收会丢）；折叠时副标题/隐藏提示一并收起。「隐藏未登录」沿用原顶栏开关。
+3. **下载页三分栏**：顶部 `TabRow`「全部 / 下载中 / 已完成」，标签带计数；
+   下载中 = 非 `STATUS_COMPLETED`，已完成 = `STATUS_COMPLETED`；先过滤再归组。
+4. **同链接内容折叠**：`buildDownloadEntries` 在文件夹组之外，把**没建文件夹**的任务按
+   `平台 + 去掉末尾 (_video)?_数字 的标题` 归组，组内 ≥2 条即折叠（组名用该标题）。
+
+**回退**：`buildDownloadEntries` 恢复旧实现、删 `sameLinkGroupKey` 与 TabRow/`dl_tab_*`；
+`CollapsibleSectionHeader` 与两个 expanded 状态删掉、标题字符串还原。
+
 **回退**：删 `ParseQueueItem/parseQueue/queueDetailId/queueNotice` 与队列函数、`ParseQueueSection.kt`、
 `VideoResultSection` 的两个新参数、输入页按钮改回单个、`rs_queue_*` 字符串。
 
