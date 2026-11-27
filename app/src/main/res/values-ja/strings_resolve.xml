@@ -247,4 +247,14 @@
     <string name="rs_category_image">画像</string>
     <string name="rs_category_archive">圧縮ファイル</string>
     <string name="rs_category_other">その他</string>
+
+    <string name="rs_batch_title">一括解析</string>
+    <string name="rs_batch_summary">%1$d 件のリンク · %2$d 件選択中</string>
+    <string name="rs_batch_skipped">重複リンク %1$d 件をスキップ</string>
+    <string name="rs_batch_truncated">1 回の上限 20 件を超えたため %1$d 件を切り捨て</string>
+    <string name="rs_batch_select_all">すべて選択</string>
+    <string name="rs_batch_download_selected">選択項目をダウンロード（%1$d）</string>
+    <string name="rs_batch_nothing_selected">先に項目を選択してください</string>
+    <string name="rs_batch_item_media">画像 %1$d 枚 · 動画 %2$d 本</string>
+    <string name="rs_batch_parsing">解析中…</string>
 </resources>
