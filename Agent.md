@@ -2729,6 +2729,9 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 5. 回退后队列行按选择显示：全选 = √、部分选 = 半选方块、未选 = 空（`TriStateCheckbox`，只作指示）；
 6. 「开始解析」解析队列里所有未解析项（并发 3、逐条回填）；队列为空时仍是原来的单链接解析；
 7. 队列上限 20 条；「下载所选」逐条按各自选择入队（未进过内容页 = 默认全选）。
+8. **（1.5.4-dev2 修正）页面二只负责挑选，不提供下载**：进入后是 `QueueItemSelectionSection`
+   （逐条勾选图片/视频/音频，默认全选，可全选/全不选），「完成」即回队列；真正的下载由**页面一**
+   的「下载所选（n 项）」统一执行（`downloadQueueSelected`，按每条 `chosenMedias()` 入队）。
 
 **实现要点**
 - `ParseQueueItem`（id/url/link/result/error/parsing/selectedUrls）+ `chosenMedias()`、`allSelected`、`partiallySelected`；
