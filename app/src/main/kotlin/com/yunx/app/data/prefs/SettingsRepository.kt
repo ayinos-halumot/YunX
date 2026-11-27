@@ -29,6 +29,28 @@ class SettingsRepository(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences("yunx_settings", Context.MODE_PRIVATE)
 
+    // ---------- 解析历史（跨次解析去重提示） ----------
+
+    private val parseHistoryPrefs by lazy {
+        context.applicationContext.getSharedPreferences("yunx_parse_history", Context.MODE_PRIVATE)
+    }
+
+    /** 该链接上次解析的时间（毫秒）；0 表示没解析过 */
+    fun lastParsedAt(url: String): Long =
+        parseHistoryPrefs.getLong("u_" + url.hashCode().toString(), 0L)
+
+    /** 记录一次解析；超过 500 条时清掉 90 天前的旧记录，避免无限增长 */
+    fun markParsed(url: String, now: Long = System.currentTimeMillis()) {
+        val edit = parseHistoryPrefs.edit().putLong("u_" + url.hashCode().toString(), now)
+        if (parseHistoryPrefs.all.size > 500) {
+            val cutoff = now - 90L * 24 * 60 * 60 * 1000
+            parseHistoryPrefs.all.forEach { (k, v) ->
+                if (v is Long && v < cutoff) edit.remove(k)
+            }
+        }
+        edit.apply()
+    }
+
     /** 下载线程数（通用/手动添加，分片并发数），默认 32，上限 512（真实并发另见 [MAX_DOWNLOAD_THREADS] 的说明） */
     var downloadThreads: Int
         get() = downloadThreadsFor(DownloadPlatform.GENERIC)
