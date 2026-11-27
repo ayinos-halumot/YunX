@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.network.httpHeaders
+import com.yunx.app.ui.preview.previewNetworkHeaders
 import coil3.request.ImageRequest
 import com.yunx.app.R
 import com.yunx.app.data.network.video.VideoMedia
@@ -153,7 +154,7 @@ fun QueueItemSelectionSection(
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
                                     .data(media.url)
-                                    .httpHeaders(media.headers)
+                                    .httpHeaders(previewNetworkHeaders(media.headers))
                                     .build(),
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
