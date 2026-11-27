@@ -2682,6 +2682,26 @@ private const val PREEMPT_ENDGAME_MIN_AGE_MS = 3_000L
 
 **回退**：删 `TwitterParser.kt`、两个单测、枚举项、`VideoParsers` 注册、`VideoLinkParser` 两条规则、
 `MediaNaming` 的 `x`、`PlatformLogos` 映射与 `logo_x.xml`、5 语言字符串；
+
+---
+
+### 3.54 多链接批量解析（1.5.1）
+
+**入口**：解析页输入框仍是一个，但 [ResolveViewModel.startVideoResolve] 会先用 `VideoLinkParser.parseAll(text)`
+判断：识别出的链接 > 1 条时自动转「批量解析」（`ResolveUiState.VideoBatch`），单条时走原流程。
+
+**规则（与用户确认一致）**
+- 支持多行粘贴 / 空格或中文标点分隔、混在文案里也能识别；
+- 按 `平台+资源ID` 去重，跳过的条数用 `VideoLinkParser.countDetected` 与唯一数之差算出并提示；
+- **单次上限 20 条**，超出截断并提示；
+- 解析**并发 3**（`Semaphore(3)`），结果逐条回填（先出「解析中…」卡片，完成原地替换成功/失败）；
+- 勾选后「下载所选」：每条结果仍按「多图是否新建文件夹」设置决定文件夹，音轨/动图参数照常带上。
+
+**UI**：`ui/screens/VideoBatchSection.kt`（返回、条数/已选统计、跳过/截断提示、全选、卡片列表、底部下载按钮）。
+
+**回退**：删 `VideoBatchSection.kt`、`VideoBatch/VideoBatchItem`、VM 的批量函数与 `startVideoResolve` 里的分流、
+`VideoLinkParser.parseAll/countDetected`、ResolveScreen 的 `VideoBatch` 分支、5 语言的 `rs_batch_*` 字符串。
+
 `VideoParseRepository` 恢复成 `parser.parse(...).withSecureMediaUrls()` 单行，删 `MediaDedupe.kt` 与
 `SettingsRepository` 的解析历史方法。
 
