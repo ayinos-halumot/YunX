@@ -40,7 +40,8 @@ object VideoParsers {
         XhsParser,
         PixivParser,
         WechatMpParser,
-        InstagramParser
+        InstagramParser,
+        TwitterParser
     )
 
     private val byPlatform: Map<VideoPlatform, VideoParser> = all.associateBy { it.platform }
