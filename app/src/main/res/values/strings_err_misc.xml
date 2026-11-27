@@ -223,4 +223,11 @@
     <string name="em_log_logcat_unavailable">（读取日志失败：本机 logcat 不可用）\n</string>
     <string name="em_log_no_output">（无输出）\n</string>
     <string name="em_log_share_title">分享日志</string>
+
+    <string name="er_x_not_found">帖子不存在、已删除或受保护</string>
+    <string name="er_x_blocked">被 X 拦截（可能需要登录，或当前网络不支持），请稍后再试</string>
+    <string name="er_x_no_media">该帖子没有可下载的图片或视频</string>
+    <string name="er_x_no_data">X 没有返回可解析的数据</string>
+    <string name="em_parsed_dedup">已去掉 {0} 个重复项</string>
+    <string name="em_link_parsed_before">该链接上次解析于 {0}，本次按最新内容解析</string>
 </resources>
