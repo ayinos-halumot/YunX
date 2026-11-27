@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- X（Twitter）平台图标：自绘占位（黑底 + 白色 X 字标），未使用官方素材。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FF0F1419"
+        android:pathData="M10,3h28a7,7 0,0 1,7 7v28a7,7 0,0 1,-7 7H10a7,7 0,0 1,-7 -7V10a7,7 0,0 1,7 -7z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13.2,13h5.6l6.1,8.2L31.4,13h3.4l-7.9,9.9L35.4,35h-5.6l-6.5,-8.7L16.3,35h-3.4l8.4,-10.5z" />
+</vector>
