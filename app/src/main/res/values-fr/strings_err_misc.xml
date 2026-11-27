@@ -222,4 +222,11 @@
     <string name="em_log_logcat_unavailable">(Échec de la lecture des journaux : logcat indisponible sur cet appareil)\n</string>
     <string name="em_log_no_output">(aucune sortie)\n</string>
     <string name="em_log_share_title">Partager les journaux</string>
+
+    <string name="er_x_not_found">Cette publication n\'existe pas, a été supprimée ou est protégée</string>
+    <string name="er_x_blocked">Bloqué par X (connexion peut-être requise, ou réseau non pris en charge) ; réessayez plus tard</string>
+    <string name="er_x_no_media">Aucune image ou vidéo téléchargeable dans cette publication</string>
+    <string name="er_x_no_data">X n\'a renvoyé aucune donnée exploitable</string>
+    <string name="em_parsed_dedup">{0} doublon(s) supprimé(s)</string>
+    <string name="em_link_parsed_before">Ce lien a déjà été analysé le {0} ; contenu le plus récent affiché</string>
 </resources>
