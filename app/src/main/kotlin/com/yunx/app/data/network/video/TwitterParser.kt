@@ -52,8 +52,19 @@ object TwitterParser : VideoParser {
 
     override suspend fun parse(link: DetectedVideoLink, cookie: String): VideoParseResult {
         val id = link.id
-        val url = "https://cdn.syndication.twimg.com/tweet-result?id=$id&lang=en&token=${embedToken(id)}"
-        val response = VideoHttp.request(url, headers = headers)
+        // token 只是这个嵌入接口的缓存键：不同版本校验松紧不一，依次尝试几种写法更稳
+        val tokens = listOf(embedToken(id), "", "0").distinct()
+        var response = VideoHttp.request(
+            "https://cdn.syndication.twimg.com/tweet-result?id=$id&lang=en&token=${tokens.first()}",
+            headers = headers
+        )
+        for (i in 1 until tokens.size) {
+            if (response.status in 200..299) break
+            response = VideoHttp.request(
+                "https://cdn.syndication.twimg.com/tweet-result?id=$id&lang=en&token=${tokens[i]}",
+                headers = headers
+            )
+        }
         when (response.status) {
             404, 410 -> throw VideoParseException(
                 VideoParseErrorKind.NOT_FOUND,
@@ -155,7 +166,45 @@ object TwitterParser : VideoParser {
      */
     internal fun embedToken(id: String): String {
         val numeric = id.toDoubleOrNull() ?: return ""
-        return ((numeric / 1e15) * Math.PI).toString(36).replace(Regex("(0+|\\.)"), "")
+        return toBase36((numeric / 1e15) * Math.PI).replace(Regex("(0+|\\.)"), "")
+    }
+
+    /**
+     * 等价于 JS 的 Number.prototype.toString(36)：整数部分按 36 进制，小数部分逐位乘 36 取整
+     * （最多 20 位，与 JS 的精度上限一致）。Kotlin/Java 的 toString 只支持十进制，所以自己实现。
+     */
+    private fun toBase36(value: Double): String {
+        if (value.isNaN() || value.isInfinite()) return ""
+        val v = kotlin.math.abs(value)
+        val intPart = v.toLong()
+        var frac = v - intPart
+        val sb = StringBuilder()
+        if (intPart == 0L) {
+            sb.append('0')
+        } else {
+            val digits = StringBuilder()
+            var n = intPart
+            while (n > 0) {
+                digits.append(BASE36_DIGITS[(n % 36).toInt()])
+                n /= 36
+            }
+            sb.append(digits.reverse())
+        }
+        if (frac > 0.0) {
+            sb.append('.')
+            var count = 0
+            while (frac > 0.0 && count < 20) {
+                frac *= 36
+                val d = frac.toInt().coerceIn(0, 35)
+                sb.append(BASE36_DIGITS[d])
+                frac -= d
+                count++
+            }
+        }
+        return sb.toString()
+    }
+
+    private const val BASE36_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
     }
 
     /** 图片取原图：`.../media/xxx.jpg` → `.../media/xxx.jpg?name=orig`（已有参数则替换 name） */
